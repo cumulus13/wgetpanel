@@ -53,6 +53,22 @@ graph TD
 
 [![Architecture](https://files.catbox.moe/oocbms.jpg)](https://files.catbox.moe/oocbms.jpg)
 
+<p align="center">
+  <a href="https://files.catbox.moe/35hh1y.png" target="_blank">
+    <img src="https://files.catbox.moe/35hh1y.png" width="500" alt="Screenshot 1">
+  </a>
+  <a href="https://files.catbox.moe/s2ouf6.png" target="_blank">
+    <img src="https://files.catbox.moe/s2ouf6.png" width="500" alt="Screenshot 2">
+  </a>
+  <a href="https://files.catbox.moe/7pyp7l.png" target="_blank">
+    <img src="https://files.catbox.moe/7pyp7l.png" width="500" alt="Screenshot 3">
+  </a>
+  <a href="https://files.catbox.moe/e6e4r7.png" target="_blank">
+    <img src="https://files.catbox.moe/e6e4r7.png" width="500" alt="Screenshot 4">
+  </a>
+</p>
+
+
 * **Progress / speed graph**: wget exposes nothing to query, so the worker measures the **size of the file
   being written** once per second (speed = bytes delta / time delta, smoothed) and takes the total from the
   `Length:` line in wget's own log. Values go to Redis (hash + capped series), the dashboard polls one

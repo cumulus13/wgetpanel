@@ -7,14 +7,17 @@ see ``core/conf.py``.
 import os
 import sys
 from pathlib import Path
+from envdot import load_env
 
 import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_env(str(BASE_DIR / '.env'))
 
+# config = load_env(str(BASE_DIR / '.env'))
 
 def env(name, default=None):
-    return os.environ.get(name, default)
+    return os.getenv(name, default)
 
 
 def env_bool(name, default=False):
@@ -22,6 +25,7 @@ def env_bool(name, default=False):
 
 
 DEBUG = env_bool("DJANGO_DEBUG", False)
+print(f"DEBUG: {DEBUG} | type: {type(DEBUG)}")
 SECRET_KEY = env("DJANGO_SECRET_KEY", "")
 if not SECRET_KEY:
     if DEBUG:
@@ -29,7 +33,8 @@ if not SECRET_KEY:
     else:
         raise RuntimeError("DJANGO_SECRET_KEY must be set (or DJANGO_DEBUG=1 for development)")
 
-ALLOWED_HOSTS = [h.strip() for h in env("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h.strip()]
+ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", ["*"], cast_type=list)
+print(f"ALLOWED_HOSTS: {ALLOWED_HOSTS} | type: {type(ALLOWED_HOSTS)}")
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in env("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()]
 
 INSTALLED_APPS = [
@@ -87,7 +92,9 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = "en-us"
-TIME_ZONE = env("TZ", "UTC")
+TIME_ZONE = env("TZ", env("TIME_ZONE", "UTC"))
+print(f"TIME_ZONE: {TIME_ZONE}")
+# TIME_ZONE = "Asia/Jakarta"
 USE_I18N = False
 USE_TZ = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -134,7 +141,7 @@ WGP_LOG_DIR = env("WGP_LOG_DIR", str(BASE_DIR / "logs"))
 WGP_WGET_BINARY = env("WGP_WGET_BINARY", "wget")
 # Reject URLs resolving to loopback / private / link-local addresses (SSRF guard).
 WGP_BLOCK_PRIVATE_ADDRESSES = env_bool("WGP_BLOCK_PRIVATE_ADDRESSES", True)
-WGP_SCHEDULER_TICK = float(env("WGP_SCHEDULER_TICK", "2"))
+WGP_SCHEDULER_TICK = os.getenv("WGP_SCHEDULER_TICK", '2.0', cast_type=float)
 WGP_REDIS_URL = env("WGP_REDIS_URL", env("REDIS_URL", "redis://localhost:6379/1"))
 
 # --- celery ---------------------------------------------------------------
@@ -147,7 +154,7 @@ CELERY_TASK_DEFAULT_QUEUE = "celery"
 CELERY_TASK_ROUTES = {"core.tasks.run_download": {"queue": "downloads"}}
 CELERY_TASK_ALWAYS_EAGER = False
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
-CELERY_TIMEZONE = "UTC"
+CELERY_TIMEZONE = env("TZ", env("TIME_ZONE", "UTC"))
 CELERY_BEAT_SCHEDULE = {
     "scheduler-tick": {"task": "core.tasks.scheduler_tick", "schedule": WGP_SCHEDULER_TICK},
     "reap-stale": {"task": "core.tasks.reap_stale", "schedule": 10.0},
