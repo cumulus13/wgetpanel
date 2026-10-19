@@ -8,7 +8,7 @@ but the backend is plain `wget`, which has no RPC.
 ![Django](https://img.shields.io/badge/django-%23092E20.svg?style=flat&logo=django&logoColor=white) ![Redis](https://img.shields.io/badge/redis-%23DD0031.svg?style=flat&logo=redis&logoColor=white) ![Celery](https://img.shields.io/badge/celery-%2337814A.svg?style=flat&logo=celery&logoColor=white) ![PostgreSQL](https://img.shields.io/badge/postgresql-%23316192.svg?style=flat&logo=postgresql&logoColor=white) ![CI Status](https://github.com/cumulus13/wgetpanel/actions/workflows/ci.yml/badge.svg)
 
 <p align="center">
-  <img src="https://files.catbox.moe/dwka6u.png" width="20%" alt="Powered by">
+  <img src="https://files.catbox.moe/dwka6u.png" width="80%" alt="Powered by">
 </p>
 
 
