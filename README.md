@@ -1,6 +1,6 @@
 # wgetpanel
 
-Django control panel for **wget**: live dashboard with speed graph, download queue with a
+Django control panel for **wget** (django + celery + redis+ postgresql): live dashboard with speed graph, download queue with a
 **max simultaneous downloads** scheduler, time based **speed rules**, per-user isolation, dark mode,
 all configuration stored in **PostgreSQL**. Same concept as [aria2panel](https://github.com/cumulus13/aria2panel),
 but the backend is plain `wget`, which has no RPC.
