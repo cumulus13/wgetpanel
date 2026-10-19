@@ -66,6 +66,9 @@ graph TD
   <a href="https://files.catbox.moe/e6e4r7.png" target="_blank">
     <img src="https://files.catbox.moe/e6e4r7.png" width="500" alt="Screenshot 4">
   </a>
+  <a href="https://files.catbox.moe/grlhnr.png" target="_blank">
+    <img src="https://files.catbox.moe/grlhnr.png" width="500" alt="Screenshot 5">
+  </a>
 </p>
 
 
