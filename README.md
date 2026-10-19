@@ -1,0 +1,161 @@
+# wgetpanel
+
+Django control panel for **wget**: live dashboard with speed graph, download queue with a
+**max simultaneous downloads** scheduler, time based **speed rules**, per-user isolation, dark mode,
+all configuration stored in **PostgreSQL**. Same concept as [aria2panel](https://github.com/cumulus13/aria2panel),
+but the backend is plain `wget`, which has no RPC.
+
+![Django](https://img.shields.io/badge/django-%23092E20.svg?style=flat&logo=django&logoColor=white) ![Redis](https://img.shields.io/badge/redis-%23DD0031.svg?style=flat&logo=redis&logoColor=white) ![Celery](https://img.shields.io/badge/celery-%2337814A.svg?style=flat&logo=celery&logoColor=white) ![PostgreSQL](https://img.shields.io/badge/postgresql-%23316192.svg?style=flat&logo=postgresql&logoColor=white) ![CI Status](https://github.com/cumulus13/wgetpanel/actions/workflows/ci.yml/badge.svg)
+
+<p align="center">
+  <img src="https://files.catbox.moe/wtuttw.png" width="20%" alt="Powered by Django">
+</p>
+
+
+## How it works without RPC
+
+```
+browser ──HTTP/JSON──► web (Django + gunicorn) ──► PostgreSQL (queue, settings, history)
+                         │  ▲                              ▲
+              ctl msgs   ▼  │ live speed                   │
+                        Redis ◄──────────────┐             │
+                                             │             │
+ beat ─► ctl worker (scheduler tick, reaper) ┘─────────────┘
+          │ celery task per download
+          ▼
+ downloads worker ── spawns ──► wget -c -O <file> <url>   (one process group per download)
+          └─ samples the size of <file> every second ──► speed, ETA, graph
+```
+
+```mermaid
+graph TD
+    %% Nodes
+    Browser["browser"]
+    Web["web<br/>(Django + gunicorn)"]
+    Postgres["PostgreSQL<br/>(queue, settings, history)"]
+    Redis["Redis"]
+    Beat["beat"]
+    CtlWorker["ctl worker<br/>(scheduler tick, reaper)"]
+    DownloadsWorker["downloads worker"]
+    Wget["wget -c -O &lt;file&gt; &lt;url&gt;<br/>(one process group per download)"]
+
+    %% Connections
+    Browser -- "HTTP/JSON" --> Web
+    Web --> Postgres
+    Web <-->|"live speed"| Redis
+    CtlWorker -->|"ctl msgs"| Redis
+    Beat --> CtlWorker
+    CtlWorker -->|"celery task per download"| DownloadsWorker
+    DownloadsWorker -- "spawns" --> Wget
+    DownloadsWorker -. "samples the size of &lt;file&gt; every second" .-> Redis
+    DownloadsWorker -. "samples the size of &lt;file&gt; every second" .-> Postgres
+```
+
+[![Architecture](https://files.catbox.moe/oocbms.jpg)](https://files.catbox.moe/oocbms.jpg)
+
+* **Progress / speed graph**: wget exposes nothing to query, so the worker measures the **size of the file
+  being written** once per second (speed = bytes delta / time delta, smoothed) and takes the total from the
+  `Length:` line in wget's own log. Values go to Redis (hash + capped series), the dashboard polls one
+  `/api/snapshot/` endpoint. The database only gets a checkpoint every 5 s.
+* **Pause / resume**: wget is terminated, `wget -c` continues from the bytes on disk (needs a server that
+  supports `Range`; on servers that ignore it, resume restarts from zero and the file is still correct, tested).
+* **Speed rules**: wget cannot change `--limit-rate` while running, so when the effective limit changes the
+  worker restarts wget with `-c` (one short reconnect). Limits apply **per running download**; wget cannot
+  enforce one shared cap.
+* **Scheduler**: every tick locks a singleton row (`SELECT … FOR UPDATE`) so several beat/worker processes can
+  never exceed *max simultaneous downloads*. Queue is FIFO, reorderable, items can have a start time.
+* **Crash recovery**: a running download without heartbeat for 30 s (worker killed, broker lost the task) is
+  put back in the queue and resumed with `-c`. Orphaned wget processes are killed (only if `/proc` confirms
+  the PID is *our* wget for that download).
+* **Why Celery + Redis**: one long-running task per download gives you process isolation, horizontal
+  concurrency (`WGP_WORKER_CONCURRENCY`) and restarts for free. RabbitMQ is not needed: Redis is required anyway
+  for the live metrics. (`acks_late` is off on purpose: with Redis' visibility timeout a long download would be
+  redelivered and run twice; the reaper handles lost workers instead.)
+
+## Quick start (Docker)
+
+```bash
+cp .env.example .env     # edit DJANGO_SECRET_KEY, DJANGO_SUPERUSER_PASSWORD, ...
+docker compose up -d --build
+# http://localhost:8000
+```
+
+Without Docker (needs `wget`, PostgreSQL, Redis):
+
+```bash
+python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
+cp .env.example .env && set -a && . ./.env && set +a      # adjust hosts to localhost
+python manage.py migrate && python manage.py bootstrap && python manage.py collectstatic --noinput
+gunicorn wgetpanel.wsgi -b 0.0.0.0:8000                                     # web
+celery -A wgetpanel worker -Q downloads -n dl@%h -c 8 -l INFO               # runs wget
+celery -A wgetpanel worker -Q celery -n ctl@%h -c 2 -l INFO                 # scheduler tick / reaper
+celery -A wgetpanel beat -l INFO                                            # periodic tasks
+```
+
+`deploy/smoke_test.py` drives a running stack end to end (login → add → pause → resume → completed).
+
+## Frontend: Tailwind CSS
+
+Tailwind v4, built with its CLI (no CDN in production, no runtime JS framework). The compiled
+`core/static/core/css/app.css` is committed, so deploying needs no Node. To change the UI:
+
+```bash
+cd tailwind && npm install && npm run build:all     # watch: npm run watch
+```
+
+Chart.js is vendored (no third party requests). All user supplied text is inserted with `textContent`.
+
+## Configuration
+
+Environment: database, broker, secret, hosts/TLS flags (see `.env.example`). Everything else is in the
+**Settings** page (max simultaneous downloads, per-user queue cap, retention, default retries/timeout/UA/limit,
+allowed download directories, SSRF guard) and the **Speed rules** page.
+
+## Security notes
+
+* Login required; settings and rules need `is_staff`; users only see their own downloads (staff see all).
+* CSRF on all POSTs, HttpOnly session/CSRF cookies, `X-Frame-Options: DENY`, nosniff.
+* wget runs without a shell; options come from a whitelist and are written to a private `0600` wgetrc, so
+  credentials never appear in `ps`. HTTP passwords are encrypted at rest (Fernet).
+* Downloads are confined to allowed directories (symlinks resolved). File names are sanitised and made unique.
+* **SSRF guard** (on by default): URLs resolving to loopback/private/link-local addresses are rejected.
+  **Limitation:** wget follows redirects itself and they are not re-checked, and DNS can change between check
+  and download. For hostile multi-tenant use, also block internal ranges at the network level (egress firewall).
+* A finished file is only served to its owner / staff.
+
+## Known limitations
+
+* Resume needs `Range` support (otherwise restart from zero).
+* Downloads run on the host(s) of the `worker` containers; with several worker hosts the download directory must
+  be a shared filesystem.
+* Crash recovery takes up to ~40 s (30 s heartbeat grace + 10 s reaper interval).
+* Speed graph resolution is 1 s per download, 2 s for the aggregate series.
+* File name from `Content-Disposition` is not used (name is taken from the URL or the form).
+
+## Tests
+
+```bash
+export DJANGO_DEBUG=1 DATABASE_URL=postgres://user:pass@localhost/db   # role needs CREATEDB
+export TEST_REDIS_URL=redis://localhost:6379/15                         # DB is flushed!
+python manage.py test
+```
+
+The suite runs a real `wget` against a local Range-capable server: completion + checksum, 404/refused/auth
+errors, pause→resume, cancel, speed-rule restart, `--limit-rate`, speed series, scheduler limits and concurrent
+ticks, reaper, API permissions/CSRF/SSRF/path traversal.
+
+
+## License
+
+[MIT](LICENSE)
+
+## 👤 Author
+        
+[Hadi Cahyadi](mailto:cumulus13@gmail.com)
+    
+
+[![Buy Me a Coffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/cumulus13)
+
+[![Donate via Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/cumulus13)
+ 
+[Support me on Patreon](https://www.patreon.com/cumulus13)

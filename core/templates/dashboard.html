@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+<div id="banners" class="mb-4 space-y-2"></div>
+
+<section class="mb-6 grid grid-cols-2 gap-3 md:grid-cols-6">
+  <div class="card col-span-2 p-4"><div class="label">Download speed</div><div id="st-speed" class="text-2xl font-bold tabular-nums">0 B/s</div></div>
+  <div class="card p-4"><div class="label">Running</div><div id="st-running" class="text-2xl font-bold tabular-nums">0</div><div id="st-slots" class="text-xs text-slate-500"></div></div>
+  <div class="card p-4"><div class="label">Queued</div><div id="st-queued" class="text-2xl font-bold tabular-nums">0</div></div>
+  <div class="card p-4"><div class="label">Completed</div><div id="st-completed" class="text-2xl font-bold tabular-nums">0</div></div>
+  <div class="card p-4"><div class="label">Failed</div><div id="st-error" class="text-2xl font-bold tabular-nums">0</div></div>
+</section>
+
+<section class="card mb-6 p-4">
+  <div class="mb-2 flex items-center justify-between">
+    <h2 class="text-sm font-semibold">Speed (last 10 min)</h2>
+    <span class="text-xs text-slate-500">measured from the size of the files being written</span>
+  </div>
+  <div class="h-44"><canvas id="speed-chart" aria-label="Download speed graph" role="img"></canvas></div>
+</section>
+
+<section class="card">
+  <div class="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3 dark:border-slate-800">
+    <button id="btn-add" class="btn btn-primary" type="button">+ Add downloads</button>
+    <div class="mx-2 hidden h-6 w-px bg-slate-300 sm:block dark:bg-slate-700"></div>
+    <div id="bulk" class="flex flex-wrap gap-1">
+      <button class="btn" data-bulk="pause" type="button">Pause</button>
+      <button class="btn" data-bulk="resume" type="button">Resume</button>
+      <button class="btn" data-bulk="retry" type="button">Retry</button>
+      <button class="btn" data-bulk="top" type="button" title="Move to top of queue">Top</button>
+      <button class="btn" data-bulk="bottom" type="button">Bottom</button>
+      <button class="btn btn-danger" data-bulk="cancel" type="button">Cancel</button>
+      <button class="btn btn-danger" data-bulk="remove" type="button">Remove</button>
+    </div>
+    <div class="ml-auto flex items-center gap-2">
+      <button id="btn-purge" class="btn" type="button">Clear finished</button>
+    </div>
+  </div>
+  <div id="filters" class="flex flex-wrap gap-1 border-b border-slate-200 px-3 py-2 text-sm dark:border-slate-800"></div>
+  <div class="overflow-x-auto">
+    <table class="w-full min-w-[760px] text-sm">
+      <thead class="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        <tr><th class="w-10 px-3 py-2"><input id="chk-all" type="checkbox" aria-label="Select all"></th><th class="px-3 py-2">Name</th><th class="px-3 py-2">Status</th><th class="w-56 px-3 py-2">Progress</th><th class="px-3 py-2">Speed</th><th class="px-3 py-2">ETA</th><th class="px-3 py-2 text-right">Actions</th></tr>
+      </thead>
+      <tbody id="rows" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
+    </table>
+    <p id="empty" class="hidden p-10 text-center text-slate-500">Nothing here yet. Click <b>Add downloads</b> to start.</p>
+  </div>
+</section>
+
+<!-- Add dialog -->
+<dialog id="dlg-add" class="w-full max-w-xl rounded-xl bg-white p-0 text-slate-800 shadow-xl backdrop:bg-black/50 dark:bg-slate-900 dark:text-slate-200">
+  <form id="form-add" class="space-y-4 p-6" method="dialog">
+    <h2 class="text-lg font-bold">Add downloads</h2>
+    <div><label class="label" for="f-urls">URLs (one per line)</label><textarea id="f-urls" class="input h-28 font-mono" placeholder="https://example.com/file.iso" required></textarea></div>
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div><label class="label" for="f-dir">Directory</label><input id="f-dir" class="input" placeholder="default download directory"></div>
+      <div><label class="label" for="f-name">File name (single URL)</label><input id="f-name" class="input" placeholder="auto"></div>
+      <div><label class="label" for="f-rate">Speed limit (KB/s)</label><input id="f-rate" class="input" type="number" min="0" placeholder="unlimited"></div>
+      <div><label class="label" for="f-start">Start at</label><input id="f-start" class="input" type="datetime-local"></div>
+    </div>
+    <details class="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+      <summary class="cursor-pointer text-sm font-medium">Advanced</summary>
+      <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div><label class="label" for="f-user">HTTP/FTP username</label><input id="f-user" class="input" autocomplete="off"></div>
+        <div><label class="label" for="f-pass">Password</label><input id="f-pass" class="input" type="password" autocomplete="new-password"></div>
+        <div><label class="label" for="f-tries">Retries</label><input id="f-tries" class="input" type="number" min="0" max="100"></div>
+        <div><label class="label" for="f-ref">Referer</label><input id="f-ref" class="input"></div>
+        <div class="sm:col-span-2"><label class="label" for="f-ua">User-Agent</label><input id="f-ua" class="input"></div>
+        <div class="sm:col-span-2"><label class="label" for="f-headers">Extra headers (one per line, <code>Name: value</code>)</label><textarea id="f-headers" class="input h-16 font-mono"></textarea></div>
+        <label class="flex items-center gap-2 text-sm sm:col-span-2"><input id="f-nocert" type="checkbox"> Do not verify TLS certificate</label>
+      </div>
+    </details>
+    <div id="add-errors" class="hidden rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"></div>
+    <div class="flex justify-end gap-2"><button class="btn" type="button" data-close>Cancel</button><button class="btn btn-primary" type="submit">Add</button></div>
+  </form>
+</dialog>
+
+<!-- Detail dialog -->
+<dialog id="dlg-detail" class="w-full max-w-3xl rounded-xl bg-white p-0 text-slate-800 shadow-xl backdrop:bg-black/50 dark:bg-slate-900 dark:text-slate-200">
+  <div class="space-y-4 p-6">
+    <div class="flex items-start justify-between gap-4"><h2 id="d-title" class="break-all text-lg font-bold"></h2><button class="btn" type="button" data-close>Close</button></div>
+    <dl id="d-meta" class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm"></dl>
+    <div class="h-40"><canvas id="detail-chart"></canvas></div>
+    <div><div class="label">wget log (tail)</div><pre id="d-log" class="max-h-56 overflow-auto rounded-lg bg-slate-900 p-3 text-xs text-slate-200"></pre></div>
+  </div>
+</dialog>
+{% endblock %}
+{% block scripts %}
+<script src="{% static 'core/vendor/chart.umd.min.js' %}"></script>
+<script src="{% static 'core/js/dashboard.js' %}"></script>
+{% endblock %}

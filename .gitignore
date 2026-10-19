@@ -1,0 +1,20 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+db.sqlite3
+staticfiles/
+downloads/
+logs/
+celerybeat-schedule*
+tailwind/node_modules/
+
+# Ignore Sublime Text project files
+*.sublime-project
+*.sublime-workspace
+
+# Added entries (3 items)
+download/
+gitignore_backup/
+.pt/

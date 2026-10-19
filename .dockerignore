@@ -1,0 +1,11 @@
+.git
+.github
+.env
+.venv
+__pycache__
+*.pyc
+db.sqlite3
+staticfiles
+downloads
+logs
+tailwind/node_modules

@@ -1,0 +1,41 @@
+# Web + two celery workers + beat + postgres + redis.
+# All wget processes run in `worker`; downloads/logs live on the shared `data` volume
+# (web serves finished files from it, so web and worker must mount the SAME volume).
+x-app: &app
+  build: .
+  env_file: .env
+  restart: unless-stopped
+  depends_on:
+    postgres: {condition: service_healthy}
+    redis: {condition: service_healthy}
+  volumes: [data:/data]
+
+services:
+  web:
+    <<: *app
+    command: web
+    ports: ["8000:8000"]
+  worker:
+    <<: *app
+    command: worker
+    stop_grace_period: 20s        # running downloads are resumed (wget -c) after a restart
+  ctl:
+    <<: *app
+    command: ctl
+  beat:
+    <<: *app
+    command: beat
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment: {POSTGRES_USER: wgetpanel, POSTGRES_PASSWORD: wgetpanel, POSTGRES_DB: wgetpanel}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: {test: ["CMD-SHELL", "pg_isready -U wgetpanel"], interval: 5s, retries: 10}
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    healthcheck: {test: ["CMD", "redis-cli", "ping"], interval: 5s, retries: 10}
+
+volumes: {data: {}, pgdata: {}, redisdata: {}}

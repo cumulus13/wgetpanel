@@ -1,0 +1,15 @@
+server {
+    listen 443 ssl http2;
+    server_name panel.example.com;
+    # ssl_certificate ...; ssl_certificate_key ...;
+    client_max_body_size 1m;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 60s;
+    }
+}
+# then set DJANGO_BEHIND_PROXY=1 DJANGO_SECURE_COOKIES=1 DJANGO_SSL_REDIRECT=1 DJANGO_HSTS_SECONDS=31536000

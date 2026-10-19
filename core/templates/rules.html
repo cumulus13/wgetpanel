@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Speed rules · {{ site_name }}{% endblock %}
+{% block content %}
+<h1 class="mb-1 text-xl font-bold">Speed rules</h1>
+<p class="mb-4 max-w-3xl text-sm text-slate-500">Time windows with a speed limit <b>per running download</b> (wget cannot enforce one shared cap). When a rule starts or ends, running downloads are restarted with <code>wget -c</code> and continue from the bytes already on disk (one short reconnect). Outside every window the default limit from Settings applies.</p>
+<div class="card mb-4 overflow-x-auto">
+  <table class="w-full text-sm"><thead class="text-left text-xs uppercase text-slate-500"><tr><th class="px-3 py-2">On</th><th class="px-3 py-2">Name</th><th class="px-3 py-2">Days</th><th class="px-3 py-2">From</th><th class="px-3 py-2">To</th><th class="px-3 py-2">Limit KB/s</th><th class="px-3 py-2"></th></tr></thead>
+  <tbody id="rule-rows" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody></table>
+</div>
+<form id="form-rule" class="card grid grid-cols-2 gap-3 p-4 md:grid-cols-6">
+  <div class="col-span-2"><label class="label" for="r-name">Name</label><input id="r-name" class="input" placeholder="Office hours" required></div>
+  <div><label class="label" for="r-start">From</label><input id="r-start" type="time" class="input" value="09:00"></div>
+  <div><label class="label" for="r-end">To</label><input id="r-end" type="time" class="input" value="17:00"></div>
+  <div><label class="label" for="r-limit">Limit (KB/s)</label><input id="r-limit" type="number" min="0" class="input" value="512"></div>
+  <div class="flex items-end"><button class="btn btn-primary w-full justify-center" type="submit">Add rule</button></div>
+  <div class="col-span-2 md:col-span-6"><span class="label">Days (none = every day)</span><div id="r-days" class="flex flex-wrap gap-3 text-sm"></div></div>
+</form>
+{% endblock %}
+{% block scripts %}{% load static %}<script src="{% static 'core/js/rules.js' %}"></script>{% endblock %}

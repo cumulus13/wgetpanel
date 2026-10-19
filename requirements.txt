@@ -1,0 +1,9 @@
+celery==5.6.3
+cryptography==50.0.2
+dj-database-url==3.1.2
+Django==5.2.18
+gunicorn==26.2.0
+psycopg==3.3.6
+psycopg-binary==3.3.6
+redis==6.4.0
+whitenoise==6.12.0

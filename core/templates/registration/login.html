@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Sign in · {{ site_name }}{% endblock %}
+{% block content %}
+<div class="mx-auto mt-16 max-w-sm">
+  <form method="post" class="card space-y-4 p-6">
+    {% csrf_token %}
+    <h1 class="text-xl font-bold">Sign in</h1>
+    {% if form.errors %}<p class="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">Wrong username or password.</p>{% endif %}
+    <div><label class="label" for="id_username">Username</label><input class="input" id="id_username" name="username" autocomplete="username" autofocus required></div>
+    <div><label class="label" for="id_password">Password</label><input class="input" id="id_password" name="password" type="password" autocomplete="current-password" required></div>
+    <input type="hidden" name="next" value="{{ next }}">
+    <button class="btn btn-primary w-full justify-center" type="submit">Sign in</button>
+  </form>
+</div>
+{% endblock %}

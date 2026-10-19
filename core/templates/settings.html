@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Settings · {{ site_name }}{% endblock %}
+{% block content %}
+<h1 class="mb-4 text-xl font-bold">Settings</h1>
+<p class="mb-4 text-sm text-slate-500">Stored in the database. Changes apply within a few seconds, no restart needed.</p>
+<form id="form-settings" class="space-y-6">
+  {% for group, items in groups.items %}
+  <section class="card p-5">
+    <h2 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">{{ group }}</h2>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+      {% for it in items %}
+      <div class="{% if it.opt.type == 'lines' %}md:col-span-2{% endif %}">
+        <label class="label" for="s-{{ it.opt.key }}">{{ it.opt.label }}</label>
+        {% if it.opt.type == 'bool' %}
+          <input id="s-{{ it.opt.key }}" data-key="{{ it.opt.key }}" data-type="bool" type="checkbox" {% if it.value %}checked{% endif %}>
+        {% elif it.opt.type == 'choice' %}
+          <select id="s-{{ it.opt.key }}" data-key="{{ it.opt.key }}" data-type="choice" class="input">{% for c in it.opt.choices %}<option {% if c == it.value %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+        {% elif it.opt.type == 'lines' %}
+          <textarea id="s-{{ it.opt.key }}" data-key="{{ it.opt.key }}" data-type="lines" class="input h-24 font-mono">{{ it.value }}</textarea>
+        {% elif it.opt.type == 'int' %}
+          <input id="s-{{ it.opt.key }}" data-key="{{ it.opt.key }}" data-type="int" class="input" type="number" value="{{ it.value }}" {% if it.opt.min is not None %}min="{{ it.opt.min }}"{% endif %} {% if it.opt.max is not None %}max="{{ it.opt.max }}"{% endif %}>
+        {% else %}
+          <input id="s-{{ it.opt.key }}" data-key="{{ it.opt.key }}" data-type="str" class="input" value="{{ it.value }}">
+        {% endif %}
+        {% if it.opt.help %}<p class="mt-1 text-xs text-slate-500">{{ it.opt.help }}</p>{% endif %}
+        <p class="mt-1 hidden text-xs text-red-600" data-err="{{ it.opt.key }}"></p>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+  <button class="btn btn-primary" type="submit">Save settings</button>
+</form>
+{% endblock %}
+{% block scripts %}{% load static %}<script src="{% static 'core/js/settings.js' %}"></script>{% endblock %}

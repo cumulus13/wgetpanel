@@ -1,0 +1,39 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: {POSTGRES_USER: wgp, POSTGRES_PASSWORD: wgp, POSTGRES_DB: wgp}
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U wgp" --health-interval 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-retries 10
+    env:
+      DJANGO_DEBUG: "1"
+      DATABASE_URL: postgres://wgp:wgp@localhost:5432/wgp
+      TEST_REDIS_URL: redis://localhost:6379/15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: pip install -r requirements.txt
+      - run: wget --version | head -1
+      - run: python manage.py check
+      - run: python manage.py makemigrations --check --dry-run
+      - run: python manage.py test -v 2
+      - run: DJANGO_SECRET_KEY=ci python manage.py collectstatic --noinput
+  css:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - run: cd tailwind && npm install --no-audit --no-fund && npm run build:all
+      - name: compiled CSS must be committed
+        run: git diff --exit-code core/static/core

@@ -1,0 +1,15 @@
+{
+  "name": "wgetpanel-frontend",
+  "private": true,
+  "scripts": {
+    "build": "tailwindcss -i ./input.css -o ../core/static/core/css/app.css --minify",
+    "watch": "tailwindcss -i ./input.css -o ../core/static/core/css/app.css --watch",
+    "vendor": "cp node_modules/chart.js/dist/chart.umd.min.js ../core/static/core/vendor/chart.umd.min.js && sed -i '/sourceMappingURL/d' ../core/static/core/vendor/chart.umd.min.js",
+    "build:all": "npm run vendor && npm run build"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.0",
+    "chart.js": "^4.4.0",
+    "tailwindcss": "^4.1.0"
+  }
+}
