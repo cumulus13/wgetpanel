@@ -7,3 +7,4 @@ psycopg==3.3.6
 psycopg-binary==3.3.6
 redis==6.4.0
 whitenoise==6.12.0
+envdot
