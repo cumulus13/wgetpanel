@@ -8,7 +8,7 @@ from django.db import transaction
 from django.db.models import Max, Q
 from django.utils import timezone
 
-from . import conf, live
+from . import conf, events, live
 from .models import Download, SchedulerState
 
 log = logging.getLogger(__name__)
@@ -91,4 +91,5 @@ def reap_stale(grace_seconds=30):
                 status=Download.QUEUED, pid=None, requeues=d.requeues + 1)
             requeued += n
             log.warning("download %s had no heartbeat, requeued", d.pk)
+        events.emit(d.pk)
     return requeued

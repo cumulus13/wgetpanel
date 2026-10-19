@@ -14,10 +14,9 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_env(str(BASE_DIR / '.env'))
 
-# config = load_env(str(BASE_DIR / '.env'))
 
-def env(name, default=None):
-    return os.getenv(name, default)
+def env(name, default=None, cast_type=None):
+    return os.getenv(name, default, cast_type=cast_type)
 
 
 def env_bool(name, default=False):
@@ -35,7 +34,7 @@ if not SECRET_KEY:
 
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", ["*"], cast_type=list)
 print(f"ALLOWED_HOSTS: {ALLOWED_HOSTS} | type: {type(ALLOWED_HOSTS)}")
-CSRF_TRUSTED_ORIGINS = [o.strip() for o in env("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()]
+CSRF_TRUSTED_ORIGINS = env("DJANGO_CSRF_TRUSTED_ORIGINS", [], cast_type=list)
 
 INSTALLED_APPS = [
     "django.contrib.auth",
@@ -141,6 +140,9 @@ WGP_LOG_DIR = env("WGP_LOG_DIR", str(BASE_DIR / "logs"))
 WGP_WGET_BINARY = env("WGP_WGET_BINARY", "wget")
 # Reject URLs resolving to loopback / private / link-local addresses (SSRF guard).
 WGP_BLOCK_PRIVATE_ADDRESSES = env_bool("WGP_BLOCK_PRIVATE_ADDRESSES", True)
+# Mobile API: token lifetime (0 = never expires) and max duration of one SSE connection.
+WGP_TOKEN_TTL_DAYS = int(env("WGP_TOKEN_TTL_DAYS", "180"))
+WGP_SSE_MAX_SECONDS = int(env("WGP_SSE_MAX_SECONDS", "3600"))
 WGP_SCHEDULER_TICK = os.getenv("WGP_SCHEDULER_TICK", '2.0', cast_type=float)
 WGP_REDIS_URL = env("WGP_REDIS_URL", env("REDIS_URL", "redis://localhost:6379/1"))
 

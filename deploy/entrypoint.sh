@@ -5,7 +5,8 @@ case "$1" in
   web)
     python manage.py migrate --noinput
     python manage.py bootstrap
-    exec gunicorn wgetpanel.wsgi -b 0.0.0.0:8000 -w "${GUNICORN_WORKERS:-3}" --access-logfile - --timeout 60
+    # gthread: every open /api/v1/events stream (mobile app) occupies one thread for its lifetime
+    exec gunicorn wgetpanel.wsgi -b 0.0.0.0:8000 -k gthread -w "${GUNICORN_WORKERS:-3}" --threads "${GUNICORN_THREADS:-32}" --access-logfile - --timeout 60 --graceful-timeout 20
     ;;
   worker)  # runs the wget processes, one celery slot per concurrent download
     mkdir -p "$WGP_DOWNLOAD_ROOT" "$WGP_LOG_DIR"

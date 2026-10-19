@@ -4,7 +4,7 @@ from datetime import timedelta
 from celery import shared_task
 from django.utils import timezone
 
-from . import conf, live, runner, scheduler
+from . import conf, events, live, runner, scheduler
 from .models import Download
 
 log = logging.getLogger(__name__)
@@ -26,6 +26,7 @@ def dispatch(ids):
 @shared_task(name="core.tasks.scheduler_tick")
 def scheduler_tick():
     ids = scheduler.tick()
+    events.emit_many(ids)
     dispatch(ids)
     try:
         scheduler.record_metrics()

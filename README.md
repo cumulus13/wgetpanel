@@ -130,6 +130,12 @@ Environment: database, broker, secret, hosts/TLS flags (see `.env.example`). Eve
 **Settings** page (max simultaneous downloads, per-user queue cap, retention, default retries/timeout/UA/limit,
 allowed download directories, SSRF guard) and the **Speed rules** page.
 
+## Mobile API
+
+`/api/v1/*` with per-device bearer tokens, a Server-Sent Events stream for live status/progress (no Firebase, no
+ntfy app needed) and an OpenAPI document at `/api/v1/openapi.json`. Details, event list and Android/iOS notes:
+[docs/MOBILE.md](docs/MOBILE.md). The web UI keeps using its own session based `/api/*`.
+
 ## Security notes
 
 * Login required; settings and rules need `is_staff`; users only see their own downloads (staff see all).
@@ -141,6 +147,8 @@ allowed download directories, SSRF guard) and the **Speed rules** page.
   **Limitation:** wget follows redirects itself and they are not re-checked, and DNS can change between check
   and download. For hostile multi-tenant use, also block internal ranges at the network level (egress firewall).
 * A finished file is only served to its owner / staff.
+* Mobile tokens: only the SHA-256 is stored, per device, expiring, revocable; login is rate limited (10 failures / 15 min per IP + username).
+  **Limitation:** the limiter keys on `REMOTE_ADDR`, and gunicorn does not rewrite it from `X-Forwarded-For`. Behind a reverse proxy every client therefore shares one IP, the limit effectively becomes per username, and anyone can lock a known username out for 15 minutes. Rate limit per client IP at the proxy (e.g. nginx `limit_req` on `/api/v1/auth/token`) until this is made proxy-aware.
 
 ## Known limitations
 

@@ -17,7 +17,7 @@ import time
 from django.conf import settings
 from django.utils import timezone
 
-from . import live, wget
+from . import events, live, wget
 from .models import Download
 
 log = logging.getLogger(__name__)
@@ -90,6 +90,7 @@ def run(pk):
         log.exception("download %s crashed", pk)
         Download.objects.filter(pk=pk, status=Download.RUNNING).update(
             status=Download.ERROR, error=f"Internal error: {exc}", finished_at=timezone.now(), pid=None)
+        events.emit(pk)
     finally:
         live.clear_live(pk)
 
@@ -130,6 +131,7 @@ def _supervise(d):
             Download.objects.filter(pk=pk).update(pid=None)
             if outcome == "cancel_delete":
                 _remove_files(d)
+            events.emit(pk)
             return
         code = proc.returncode
         now = timezone.now()
@@ -141,6 +143,7 @@ def _supervise(d):
             Download.objects.filter(pk=pk, status=Download.RUNNING).update(
                 status=Download.ERROR, downloaded_bytes=size, total_bytes=total, exit_code=code, pid=None, finished_at=now,
                 error=wget.describe_exit(code, tail))
+        events.emit(pk)
         return
 
 

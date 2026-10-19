@@ -13,3 +13,12 @@ server {
     }
 }
 # then set DJANGO_BEHIND_PROXY=1 DJANGO_SECURE_COOKIES=1 DJANGO_SSL_REDIRECT=1 DJANGO_HSTS_SECONDS=31536000
+
+# --- mobile API -------------------------------------------------------------
+# limit_req_zone $binary_remote_addr zone=wgp_login:10m rate=10r/m;   (http{} context)
+# location = /api/v1/auth/token { limit_req zone=wgp_login burst=5 nodelay; proxy_pass http://127.0.0.1:8000; }
+# location = /api/v1/events {
+#     proxy_pass http://127.0.0.1:8000;
+#     proxy_buffering off; proxy_cache off; proxy_read_timeout 3700s;
+#     proxy_set_header Connection ""; proxy_http_version 1.1;
+# }

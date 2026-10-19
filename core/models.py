@@ -114,3 +114,21 @@ class SpeedRule(models.Model):
             in_window = t >= self.start or t <= self.end
             day = now.weekday() if t >= self.start else (now.weekday() - 1) % 7
         return self.enabled and in_window and (not days or day in days)
+
+
+class ApiToken(models.Model):
+    """Bearer token for the mobile API. Only the SHA-256 of the token is stored."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="api_tokens")
+    name = models.CharField(max_length=100, blank=True)  # device name, e.g. "Pixel 8"
+    key_hash = models.CharField(max_length=64, unique=True)
+    prefix = models.CharField(max_length=12)  # first chars, to recognise a token in lists
+    created_at = models.DateTimeField(default=timezone.now)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user_id}:{self.prefix}…"

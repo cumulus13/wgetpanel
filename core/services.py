@@ -5,7 +5,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from . import conf, live, wget
+from . import conf, events, live, wget
 from .models import Download
 from .scheduler import next_position
 
@@ -55,6 +55,7 @@ def create_downloads(user, urls, directory=None, filename=None, options=None, no
             d.save()
             pos += 1
             created.append(d)
+    events.emit_many([d.pk for d in created])
     return created, errors
 
 
@@ -83,9 +84,13 @@ def apply_action(user, action, ids, delete_files=False):
             if delete_files:
                 _delete_file(d)
             live.drop_series(d.pk)
-        n = gone.count()
+        removed = list(gone.values_list("pk", "owner_id"))
+        n = len(removed)
         gone.delete()
+        for pk, owner in removed:
+            events.emit_removed(pk, owner)
         return n
+    touched = []
     for d in qs.filter(pk__in=ids):
         if action == "pause" and d.status in (Download.RUNNING, Download.QUEUED):
             was = d.status
@@ -93,13 +98,16 @@ def apply_action(user, action, ids, delete_files=False):
             if was == Download.RUNNING:
                 _kill_if_running(d, "pause")
             n += 1
+            touched.append(d.pk)
         elif action == "resume" and d.status == Download.PAUSED:
             Download.objects.filter(pk=d.pk).update(status=Download.QUEUED, not_before=None)
             n += 1
+            touched.append(d.pk)
         elif action == "retry" and d.status in (Download.ERROR, Download.CANCELED):
             Download.objects.filter(pk=d.pk).update(status=Download.QUEUED, error="", exit_code=None, finished_at=None,
                                                     requeues=0, position=next_position(), not_before=None)
             n += 1
+            touched.append(d.pk)
         elif action == "cancel" and d.status in Download.ACTIVE:
             was = d.status
             Download.objects.filter(pk=d.pk).update(status=Download.CANCELED, finished_at=timezone.now(), pid=None)
@@ -108,16 +116,22 @@ def apply_action(user, action, ids, delete_files=False):
             elif delete_files:
                 _delete_file(d)
             n += 1
+            touched.append(d.pk)
         elif action == "remove":
             if d.status == Download.RUNNING:
                 _kill_if_running(d, "cancel_delete" if delete_files else "cancel")
             elif delete_files:
                 _delete_file(d)
             live.drop_series(d.pk)
+            pk, owner = d.pk, d.owner_id
             d.delete()
+            events.emit_removed(pk, owner)
             n += 1
+            continue
     if action in ("top", "bottom", "up", "down"):
         n = _reorder(qs, action, ids)
+    elif action != "remove":
+        events.emit_many(touched)
     return n
 
 
@@ -154,3 +168,14 @@ def _reorder(qs, action, ids):
             if d.position != base + offset:
                 Download.objects.filter(pk=d.pk).update(position=base + offset)
     return len(sel)
+
+
+def completed_file(user, pk):
+    """(real_path, file_name) of a completed download the user may read, else None."""
+    d = visible(user).filter(pk=pk, status=Download.COMPLETED).first()
+    if d is None or not os.path.isfile(d.path):
+        return None
+    real = os.path.realpath(d.path)
+    if not any(real.startswith(r.rstrip(os.sep) + os.sep) for r in conf.allowed_dirs()):
+        return None
+    return real, d.filename

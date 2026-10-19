@@ -11,6 +11,7 @@ from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_GET, require_POST
 
 from . import conf, live, services, wget
+from . import snapshot as snapshot_mod
 from .models import Download, SchedulerState, SpeedRule
 
 
@@ -74,77 +75,20 @@ def healthz(request):
     return JsonResponse(status, status=200 if ok else 503)
 
 
-# ---------------------------------------------------------------- serialisation
-def _row(d, lv):
-    total = d.total_bytes
-    downloaded, speed = d.downloaded_bytes, 0
-    if d.status == Download.RUNNING and lv:
-        downloaded = int(lv.get("downloaded") or downloaded)
-        speed = int(lv.get("speed") or 0)
-        if lv.get("total"):
-            total = int(lv["total"])
-    eta = None
-    if speed > 0 and total and total > downloaded:
-        eta = int((total - downloaded) / speed)
-    return {
-        "id": d.pk, "url": d.url, "filename": d.filename, "directory": d.directory, "status": d.status,
-        "total": total, "downloaded": downloaded, "speed": speed, "eta": eta,
-        "progress": round(downloaded * 100 / total, 1) if total else None,
-        "error": d.error, "owner": d.owner.get_username() if d.owner else None,
-        "position": d.position, "not_before": d.not_before.isoformat() if d.not_before else None,
-        "created": d.created_at.isoformat(), "finished": d.finished_at.isoformat() if d.finished_at else None,
-        "has_auth": bool(d.http_user),
-    }
-
-
+# ---------------------------------------------------------------- read endpoints (shared logic: core/snapshot.py)
 @require_GET
 @api_login_required
 def snapshot(request):
-    qs = services.visible(request.user).select_related("owner")
-    active = list(qs.filter(status__in=Download.ACTIVE))
-    finished = list(qs.filter(status__in=Download.FINISHED).order_by("-finished_at", "-id")[:200])
-    rows = active + finished
-    try:
-        lives = live.get_live_many([d.pk for d in rows if d.status == Download.RUNNING])
-        series = live.get_aggregate("global" if request.user.is_staff else f"user:{request.user.pk}", 300)
-        redis_ok = True
-    except Exception:
-        lives, series, redis_ok = {}, [], False
-    out = [_row(d, lives.get(d.pk)) for d in rows]
-    counts = {s: 0 for s in (Download.QUEUED, Download.RUNNING, Download.PAUSED, Download.COMPLETED, Download.ERROR, Download.CANCELED)}
-    for r in out:
-        counts[r["status"]] += 1
-    state = SchedulerState.objects.filter(id=1).first()
-    last_tick = state.last_tick if state else None
-    return JsonResponse({
-        "downloads": out, "counts": counts, "speed": sum(r["speed"] for r in out), "series": series,
-        "max_downloads": conf.get("scheduler.max_downloads"), "redis": redis_ok,
-        "scheduler_alive": bool(last_tick and (timezone.now() - last_tick).total_seconds() < 30),
-        "server_time": timezone.now().isoformat(),
-    })
+    return JsonResponse(snapshot_mod.build_snapshot(request.user))
 
 
 @require_GET
 @api_login_required
 def detail(request, pk):
-    d = services.visible(request.user).filter(pk=pk).first()
-    if d is None:
+    data = snapshot_mod.build_detail(request.user, pk)
+    if data is None:
         raise Http404
-    try:
-        lv = live.get_live_many([pk])[pk]
-        series = live.get_series(pk, 300)
-    except Exception:
-        lv, series = None, []
-    log_text = ""
-    try:
-        with open(d.log_path, "rb") as fh:
-            fh.seek(0, os.SEEK_END)
-            fh.seek(max(0, fh.tell() - 16384))
-            log_text = fh.read().decode("utf-8", "replace")
-    except OSError:
-        pass
-    return JsonResponse({"download": _row(d, lv), "series": series, "log": log_text, "options": d.options,
-                         "exit_code": d.exit_code, "requeues": d.requeues})
+    return JsonResponse(data)
 
 
 # ---------------------------------------------------------------- mutations
@@ -201,13 +145,11 @@ def action(request):
 @require_GET
 @api_login_required
 def file_download(request, pk):
-    d = services.visible(request.user).filter(pk=pk, status=Download.COMPLETED).first()
-    if d is None or not os.path.isfile(d.path):
+    found = services.completed_file(request.user, pk)
+    if found is None:
         raise Http404
-    real = os.path.realpath(d.path)
-    if not any(real.startswith(r.rstrip(os.sep) + os.sep) for r in conf.allowed_dirs()):
-        raise Http404
-    return FileResponse(open(real, "rb"), as_attachment=True, filename=d.filename)
+    path, name = found
+    return FileResponse(open(path, "rb"), as_attachment=True, filename=name)
 
 
 # ---------------------------------------------------------------- settings / rules (staff)
