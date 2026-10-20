@@ -6,7 +6,6 @@ venv/
 db.sqlite3
 staticfiles/
 downloads/
-logs/
 celerybeat-schedule*
 tailwind/node_modules/
 
