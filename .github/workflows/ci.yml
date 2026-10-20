@@ -6,17 +6,17 @@ jobs:
     services:
       postgres:
         image: postgres:16
-        env: {POSTGRES_USER: wgp, POSTGRES_PASSWORD: wgp, POSTGRES_DB: wgp}
+        env: {POSTGRES_USER: wgetpanel, POSTGRES_PASSWORD: wgetpanel, POSTGRES_DB: wgetpanel}
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U wgp" --health-interval 5s --health-retries 10
+          --health-cmd "pg_isready -U wgetpanel" --health-interval 5s --health-retries 10
       redis:
         image: redis:7
         ports: ["6379:6379"]
         options: --health-cmd "redis-cli ping" --health-interval 5s --health-retries 10
     env:
       DJANGO_DEBUG: "1"
-      DATABASE_URL: postgres://wgp:wgp@localhost:5432/wgp
+      DATABASE_URL: postgres://wgetpanel:wgetpanel@localhost:5432/wgetpanel
       TEST_REDIS_URL: redis://localhost:6379/15
     steps:
       - uses: actions/checkout@v4
