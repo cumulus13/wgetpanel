@@ -163,10 +163,75 @@ CELERY_BEAT_SCHEDULE = {
     "maintenance": {"task": "core.tasks.maintenance", "schedule": 3600.0},
 }
 
+# LOGGING = {
+#     "version": 1,
+#     "disable_existing_loggers": False,
+#     "formatters": {"std": {"format": "%(asctime)s %(levelname)s %(name)s: %(message)s"}},
+#     "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "std"}},
+#     "root": {"handlers": ["console"], "level": env("DJANGO_LOG_LEVEL", "INFO")},
+# }
+
+LOG_DIR = os.path.join(BASE_DIR, 'logs')
+os.makedirs(LOG_DIR, exist_ok=True)
+LOG_FILE = os.path.join(LOG_DIR, env('DJANGO_LOG_FILE_PATH', 'debug.log'))
+
+
 LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {"std": {"format": "%(asctime)s %(levelname)s %(name)s: %(message)s"}},
-    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "std"}},
-    "root": {"handlers": ["console"], "level": env("DJANGO_LOG_LEVEL", "INFO")},
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'colored_verbose': {
+            '()': 'colorlog.ColoredFormatter',
+            'format': "%(log_color)s%(levelname)-8s%(red)s%(module)-30s%(reset)s %(blue)s%(message)s"
+        },
+        'verbose': {
+            'format': '%(asctime)s [PID:%(process)d] [TID:%(thread)d] [%(filename)s:%(lineno)d] %(levelname)s %(message)s',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': LOG_FILE,
+        },
+        'console': {
+            'level':'INFO',
+            'class':'rich.logging.RichHandler',
+        },
+        'colored_console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'colored_verbose'
+        },
+        'syslog': {
+            #'class': 'logging.handlers.SysLogHandler',
+            'class': 'logs.handler.SysLogTextHandler',
+            'address': (env("SYSLOG_PROXY_HOST", '222.222.222.7'), env("SYSLOG_PROXY_PORT", 514)),
+            'formatter': env('DJANGO_SYSLOG_PROXY_LOG_FORMAT', 'verbose'),
+            "env": env('DJANGO_SYSLOG_PROXY_LOG_ENV', "production"),
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+            'propagate': True,
+            },
+        '': {
+            'level': 'DEBUG',
+            #'handlers': ['console', 'rabbit', 'rabbit_info', 'rabbit_error'],
+            'handlers': ['console', 'syslog'],
+            },
+        'visitor.views': {
+            #'handlers': ['rabbit', 'rabbit_error', 'rabbit_info'],
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': True,
+            },
+        },
+    "root": {
+        "handlers": 
+            ["console", 'syslog'], 
+        "level": env("DJANGO_LOG_LEVEL", "INFO")},
 }
+
