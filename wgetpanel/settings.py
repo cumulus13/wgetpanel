@@ -78,7 +78,7 @@ TEMPLATES = [
 DATABASES = {
     "default": dj_database_url.parse(
         env("DATABASE_URL", f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
-        conn_max_age=int(env("DB_CONN_MAX_AGE", "60")),
+        conn_max_age=env("DB_CONN_MAX_AGE", "60", int),
         conn_health_checks=True,
     )
 }
@@ -127,7 +127,7 @@ if env_bool("DJANGO_BEHIND_PROXY", False):
     USE_X_FORWARDED_HOST = True
 SESSION_COOKIE_SECURE = CSRF_COOKIE_SECURE = env_bool("DJANGO_SECURE_COOKIES", False)
 SECURE_SSL_REDIRECT = env_bool("DJANGO_SSL_REDIRECT", False)
-SECURE_HSTS_SECONDS = int(env("DJANGO_HSTS_SECONDS", "0"))
+SECURE_HSTS_SECONDS = env("DJANGO_HSTS_SECONDS", "0", int)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = SECURE_HSTS_SECONDS > 0
 
 # --- wgetpanel ------------------------------------------------------------
@@ -141,9 +141,9 @@ WGP_WGET_BINARY = env("WGP_WGET_BINARY", "wget")
 # Reject URLs resolving to loopback / private / link-local addresses (SSRF guard).
 WGP_BLOCK_PRIVATE_ADDRESSES = env_bool("WGP_BLOCK_PRIVATE_ADDRESSES", True)
 # Mobile API: token lifetime (0 = never expires) and max duration of one SSE connection.
-WGP_TOKEN_TTL_DAYS = int(env("WGP_TOKEN_TTL_DAYS", "180"))
-WGP_SSE_MAX_SECONDS = int(env("WGP_SSE_MAX_SECONDS", "3600"))
-WGP_SCHEDULER_TICK = os.getenv("WGP_SCHEDULER_TICK", '2.0', cast_type=float)
+WGP_TOKEN_TTL_DAYS = env("WGP_TOKEN_TTL_DAYS", "180", int)
+WGP_SSE_MAX_SECONDS = env("WGP_SSE_MAX_SECONDS", "3600", int)
+WGP_SCHEDULER_TICK = env("WGP_SCHEDULER_TICK", '2.0', float)
 WGP_REDIS_URL = env("WGP_REDIS_URL", env("REDIS_URL", "redis://localhost:6379/1"))
 
 # --- celery ---------------------------------------------------------------
