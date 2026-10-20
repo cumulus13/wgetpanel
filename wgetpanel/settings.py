@@ -14,7 +14,6 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_env(str(BASE_DIR / '.env'))
 
-
 def env(name, default=None, cast_type=None):
     return os.getenv(name, default, cast_type=cast_type)
 
@@ -24,7 +23,7 @@ def env_bool(name, default=False):
 
 
 DEBUG = env_bool("DJANGO_DEBUG", False)
-print(f"DEBUG: {DEBUG} | type: {type(DEBUG)}")
+# print(f"DEBUG: {DEBUG} | type: {type(DEBUG)}")
 SECRET_KEY = env("DJANGO_SECRET_KEY", "")
 if not SECRET_KEY:
     if DEBUG:
@@ -33,8 +32,8 @@ if not SECRET_KEY:
         raise RuntimeError("DJANGO_SECRET_KEY must be set (or DJANGO_DEBUG=1 for development)")
 
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", ["*"], cast_type=list)
-print(f"ALLOWED_HOSTS: {ALLOWED_HOSTS} | type: {type(ALLOWED_HOSTS)}")
-CSRF_TRUSTED_ORIGINS = env("DJANGO_CSRF_TRUSTED_ORIGINS", [], cast_type=list)
+# print(f"ALLOWED_HOSTS: {ALLOWED_HOSTS} | type: {type(ALLOWED_HOSTS)}")
+CSRF_TRUSTED_ORIGINS = env("DJANGO_CSRF_TRUSTED_ORIGINS", [], cast_type=list) or []
 
 INSTALLED_APPS = [
     "django.contrib.auth",
