@@ -8,7 +8,7 @@ but the backend is plain `wget`, which has no RPC.
 ![Django](https://img.shields.io/badge/django-%23092E20.svg?style=flat&logo=django&logoColor=white) ![Redis](https://img.shields.io/badge/redis-%23DD0031.svg?style=flat&logo=redis&logoColor=white) ![Celery](https://img.shields.io/badge/celery-%2337814A.svg?style=flat&logo=celery&logoColor=white) ![PostgreSQL](https://img.shields.io/badge/postgresql-%23316192.svg?style=flat&logo=postgresql&logoColor=white) ![CI Status](https://github.com/cumulus13/wgetpanel/actions/workflows/ci.yml/badge.svg)
 
 <p align="center">
-  <img src="https://files.catbox.moe/dwka6u.png" width="80%" alt="Powered by">
+  <img src="https://i.ibb.co/VW5qXpny/wgetpanel-support.png" width="80%" alt="Powered by">
 </p>
 
 
@@ -51,23 +51,26 @@ graph TD
     DownloadsWorker -. "samples the size of &lt;file&gt; every second" .-> Postgres
 ```
 
-[![Architecture](https://files.catbox.moe/oocbms.jpg)](https://files.catbox.moe/oocbms.jpg)
+[![Architecture](https://i.ibb.co/JW9tGg2n/wgetpanel-architeture.jpg)](https://i.ibb.co/JW9tGg2n/wgetpanel-architeture.jpg)
 
 <p align="center">
-  <a href="https://files.catbox.moe/35hh1y.png" target="_blank">
-    <img src="https://files.catbox.moe/35hh1y.png" width="500" alt="Screenshot 1">
+  <a href="https://i.ibb.co/tjpVJMN/wgetpanel-screenshot1.png" target="_blank">
+    <img src="https://i.ibb.co/tjpVJMN/wgetpanel-screenshot1.png" width="500" alt="Screenshot 1">
   </a>
-  <a href="https://files.catbox.moe/s2ouf6.png" target="_blank">
-    <img src="https://files.catbox.moe/s2ouf6.png" width="500" alt="Screenshot 2">
+  <a href="https://i.ibb.co/KxzbhvSm/wgetpanel-screenshot2.png" target="_blank">
+    <img src="https://i.ibb.co/KxzbhvSm/wgetpanel-screenshot2.png" width="500" alt="Screenshot 2">
   </a>
-  <a href="https://files.catbox.moe/7pyp7l.png" target="_blank">
-    <img src="https://files.catbox.moe/7pyp7l.png" width="500" alt="Screenshot 3">
+  <a href="https://i.ibb.co/rGRmWJNS/wgetpanel-screenshot3.png" target="_blank">
+    <img src="https://i.ibb.co/rGRmWJNS/wgetpanel-screenshot3.png" width="500" alt="Screenshot 3">
   </a>
-  <a href="https://files.catbox.moe/e6e4r7.png" target="_blank">
-    <img src="https://files.catbox.moe/e6e4r7.png" width="500" alt="Screenshot 4">
+  <a href="https://i.ibb.co/wZtmfF5Z/wgetpanel-screenshot4.png" target="_blank">
+    <img src="https://i.ibb.co/wZtmfF5Z/wgetpanel-screenshot4.png" width="500" alt="Screenshot 4">
   </a>
-  <a href="https://files.catbox.moe/kdwz0z.png" target="_blank">
-    <img src="https://files.catbox.moe/kdwz0z.png" width="500" alt="Screenshot 5">
+  <a href="https://i.ibb.co/KxhwShLj/wgetpanel-screenshot5.png" target="_blank">
+    <img src="https://i.ibb.co/KxhwShLj/wgetpanel-screenshot5.png" width="500" alt="Screenshot 5">
+  </a>
+  <a href="https://i.ibb.co/gLc4wNGq/wgetpanel-screenshot6.png" target="_blank">
+    <img src="https://i.ibb.co/gLc4wNGq/wgetpanel-screenshot6.png" width="500" alt="Screenshot 5">
   </a>
 </p>
 
