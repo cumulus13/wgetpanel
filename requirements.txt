@@ -13,3 +13,4 @@ colorlog
 git+https://github.com/cumulus13/pydebugger2
 git+https://github.com/cumulus13/pika
 tenacity
+amqp

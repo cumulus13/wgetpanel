@@ -4,11 +4,11 @@ Only what is needed to reach the database / broker lives in the environment.
 Everything else (site name, limits, rules ...) is stored in the database,
 see ``core/conf.py``.
 """
+
 import os
 import sys
 from pathlib import Path
 from envdot import load_env
-
 import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -17,13 +17,7 @@ load_env(str(BASE_DIR / '.env'))
 def env(name, default=None, cast_type=None):
     return os.getenv(name, default, cast_type=cast_type)
 
-
-def env_bool(name, default=False):
-    return str(env(name, "1" if default else "0")).lower() in ("1", "true", "yes", "on")
-
-
-DEBUG = env_bool("DJANGO_DEBUG", False)
-# print(f"DEBUG: {DEBUG} | type: {type(DEBUG)}")
+DEBUG = os.getenv("DJANGO_DEBUG", False)
 SECRET_KEY = env("DJANGO_SECRET_KEY", "")
 if not SECRET_KEY:
     if DEBUG:
@@ -32,7 +26,6 @@ if not SECRET_KEY:
         raise RuntimeError("DJANGO_SECRET_KEY must be set (or DJANGO_DEBUG=1 for development)")
 
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", ["*"], cast_type=list)
-# print(f"ALLOWED_HOSTS: {ALLOWED_HOSTS} | type: {type(ALLOWED_HOSTS)}")
 CSRF_TRUSTED_ORIGINS = env("DJANGO_CSRF_TRUSTED_ORIGINS", [], cast_type=list) or []
 
 INSTALLED_APPS = [
@@ -121,11 +114,11 @@ CSRF_COOKIE_SAMESITE = "Lax"
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
 X_FRAME_OPTIONS = "DENY"
-if env_bool("DJANGO_BEHIND_PROXY", False):
+if os.getenv("DJANGO_BEHIND_PROXY", False):
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     USE_X_FORWARDED_HOST = True
-SESSION_COOKIE_SECURE = CSRF_COOKIE_SECURE = env_bool("DJANGO_SECURE_COOKIES", False)
-SECURE_SSL_REDIRECT = env_bool("DJANGO_SSL_REDIRECT", False)
+SESSION_COOKIE_SECURE = CSRF_COOKIE_SECURE = os.getenv("DJANGO_SECURE_COOKIES", False)
+SECURE_SSL_REDIRECT = os.getenv("DJANGO_SSL_REDIRECT", False)
 SECURE_HSTS_SECONDS = env("DJANGO_HSTS_SECONDS", "0", int)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = SECURE_HSTS_SECONDS > 0
 
@@ -138,7 +131,7 @@ WGP_DOWNLOAD_ROOT = env("WGP_DOWNLOAD_ROOT", str(BASE_DIR / "downloads"))
 WGP_LOG_DIR = env("WGP_LOG_DIR", str(BASE_DIR / "logs"))
 WGP_WGET_BINARY = env("WGP_WGET_BINARY", "wget")
 # Reject URLs resolving to loopback / private / link-local addresses (SSRF guard).
-WGP_BLOCK_PRIVATE_ADDRESSES = env_bool("WGP_BLOCK_PRIVATE_ADDRESSES", True)
+WGP_BLOCK_PRIVATE_ADDRESSES = os.getenv("WGP_BLOCK_PRIVATE_ADDRESSES", True)
 # Mobile API: token lifetime (0 = never expires) and max duration of one SSE connection.
 WGP_TOKEN_TTL_DAYS = env("WGP_TOKEN_TTL_DAYS", "180", int)
 WGP_SSE_MAX_SECONDS = env("WGP_SSE_MAX_SECONDS", "3600", int)
@@ -213,24 +206,22 @@ LOGGING = {
     'loggers': {
         'django': {
             'handlers': ['console', 'file'],
-            'level': 'DEBUG',
+            'level': 'WARNING',
             'propagate': True,
             },
-        '': {
-            'level': 'DEBUG',
-            #'handlers': ['console', 'rabbit', 'rabbit_info', 'rabbit_error'],
+        'gunicorn.error': {
             'handlers': ['console', 'syslog'],
-            },
-        'visitor.views': {
-            #'handlers': ['rabbit', 'rabbit_error', 'rabbit_info'],
-            'handlers': ['console'],
-            'level': 'DEBUG',
+            'level': 'ERROR',
             'propagate': True,
-            },
         },
-    "root": {
-        "handlers": 
-            ["console", 'syslog'], 
-        "level": env("DJANGO_LOG_LEVEL", "INFO")},
+        'gunicorn.access': {
+            'handlers': ['console', 'syslog'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        "root": {
+            "handlers": ["console", 'syslog'], 
+            "level": env("DJANGO_LOG_LEVEL", str(env("LOG_LEVEL", "INFO")).upper())
+        },
+    }
 }
-
