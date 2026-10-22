@@ -168,6 +168,7 @@ LOG_DIR = os.path.join(BASE_DIR, 'logs')
 os.makedirs(LOG_DIR, exist_ok=True)
 LOG_FILE = os.path.join(LOG_DIR, env('DJANGO_LOG_FILE_PATH', 'debug.log'))
 
+CELERY_WORKER_HIJACK_ROOT_LOGGER = os.getenv("CELERY_WORKER_HIJACK_ROOT_LOGGER", False)
 
 LOGGING = {
     'version': 1,
@@ -183,16 +184,16 @@ LOGGING = {
     },
     'handlers': {
         'file': {
-            'level': 'DEBUG',
+            'level': os.getenv("HANDLER_FILE_LOG_LEVEL", 'ERROR'),
             'class': 'logging.FileHandler',
             'filename': LOG_FILE,
         },
         'console': {
-            'level':'INFO',
+            'level': os.getenv("HANDLER_CONSOLE_LOG_LEVEL", 'INFO'),
             'class':'rich.logging.RichHandler',
         },
         'colored_console': {
-            'level': 'DEBUG',
+            'level': os.getenv("HANDLER_COLORED_CONSOLE_LOG_LEVEL", 'INFO'),
             'class': 'logging.StreamHandler',
             'formatter': 'colored_verbose'
         },
@@ -207,23 +208,43 @@ LOGGING = {
     'loggers': {
         'django': {
             'handlers': ['console', 'file'],
-            'level': 'WARNING',
+            'level': os.getenv("LOGGER_DJANGO_LOG_LEVEL", 'INFO'),
             'propagate': True,
             },
         'gunicorn.error': {
             'handlers': ['console', 'syslog'],
-            'level': 'ERROR',
+            'level': os.getenv("LOGGER_GUNICORN_ERROR_LOG_LEVEL", 'ERROR'),
             'propagate': True,
         },
         'gunicorn.access': {
             'handlers': ['console', 'syslog'],
-            'level': 'WARNING',
+            'level': os.getenv("LOGGER_GUNICORN_ACCESS_LOG_LEVEL", 'WARNING'),
             'propagate': False,
         },
         "root": {
             "handlers": ["console", 'syslog'], 
             "level": env("DJANGO_LOG_LEVEL", str(env("LOG_LEVEL", "INFO")).upper())
         },
+        'celery': {
+            'handlers': ['console', 'file', 'syslog'], 
+            'level': 'WARNING', 
+            'propagate': False, 
+        },        
+        'celery.worker': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'celery.task': {
+            'handlers': ['console'],
+            'level': 'WARNING', 
+            'propagate': False,
+        },
+        'celery.beat': {
+            'handlers': ['console'],
+            'level': 'WARNING', 
+            'propagate': False,
+        }
     }
 }
 

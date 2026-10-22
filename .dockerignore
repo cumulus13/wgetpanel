@@ -7,5 +7,4 @@ __pycache__
 db.sqlite3
 staticfiles
 downloads
-logs
 tailwind/node_modules
