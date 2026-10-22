@@ -31,6 +31,23 @@ services:
     environment: {POSTGRES_USER: wgetpanel, POSTGRES_PASSWORD: wgetpanel, POSTGRES_DB: wgetpanel}
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck: {test: ["CMD-SHELL", "pg_isready -U wgetpanel"], interval: 5s, retries: 10}
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: pgbouncer
+    hostname: pgbouncer
+    environment:
+      - DATABASE_URL=postgres://postgres:hackme@postgres:5432/postgres
+      - POOL_MODE=transaction
+      - MAX_CLIENT_CONN=1000
+      - DEFAULT_POOL_SIZE=20
+    ports:
+      - "6432:6432"
+    volumes:
+      - /containers/pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini
+      - /containers/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt
+    tty: true
+    depends_on:
+      - postgres
   redis:
     image: redis:7-alpine
     restart: unless-stopped
