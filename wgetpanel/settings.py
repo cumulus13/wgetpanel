@@ -71,7 +71,7 @@ TEMPLATES = [
 DATABASES = {
     "default": dj_database_url.parse(
         env("DATABASE_URL", f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
-        conn_max_age=env("DB_CONN_MAX_AGE", "60", int),
+        conn_max_age=env("DB_CONN_MAX_AGE", "0", int), # 0 for pgboucer and 60 for postgresql
         conn_health_checks=True,
     )
 }
