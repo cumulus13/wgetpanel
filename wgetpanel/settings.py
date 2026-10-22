@@ -9,6 +9,7 @@ import os
 import sys
 from pathlib import Path
 from envdot import load_env
+
 import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -225,3 +226,4 @@ LOGGING = {
         },
     }
 }
+
