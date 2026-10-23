@@ -36,6 +36,58 @@ curl -N $HOST/api/v1/events -H "Authorization: Bearer $TOKEN"
 curl -s -X DELETE $HOST/api/v1/auth/token -H "Authorization: Bearer $TOKEN"
 ```
 
+```mermaid
+sequenceDiagram
+    participant C as Client (Device/App)
+    participant S as API Server ($HOST)
+
+    %% 1. Log in
+    rect rgb(240, 248, 255)
+        Note over C,S: 1. Log in (Rate Limit: 10 fails/15m per REMOTE_ADDR+username)
+        C->>S: POST /api/v1/auth/token<br/>(username, password, device_name)
+        
+        alt Failure / Rate limit reached
+            S-->>C: 429 Too Many Requests + Retry-After
+        else Login Successful
+            S-->>C: 201 Created<br/>{token: "wgp_...", user: {...}, token_info: {...}}
+            Note left of C: Store token securely<br/>in Keystore/Keychain<br/>(Shown ONCE only)
+        end
+    end
+
+    %% 2. Everything else
+    rect rgb(245, 245, 245)
+        Note over C,S: 2. Authenticated Operations (Header: Bearer $TOKEN)
+        
+        C->>S: GET /api/v1/downloads
+        S-->>C: Download list
+
+        C->>S: POST /api/v1/downloads<br/>{url: "https://example.com/file.iso"}
+        S-->>C: Download added response
+
+        C->>S: POST /api/v1/downloads/actions<br/>{action: "pause", ids: [12]}
+        S-->>C: Action success response
+    end
+
+    %% 3. Live updates
+    rect rgb(240, 255, 240)
+        Note over C,S: 3. Live Updates (SSE / Streaming)
+        C->>S: GET /api/v1/events (Bearer $TOKEN)
+        loop Stream Event
+            S-->>C: Receives real-time data updates
+        end
+    end
+
+    %% 4. Log out
+    rect rgb(255, 240, 245)
+        Note over C,S: 4. Log out device
+        C->>S: DELETE /api/v1/auth/token (Bearer $TOKEN)
+        S-->>C: Token deleted/invalidated response
+        Note left of C: Remove token from<br/>Keystore/Keychain
+    end
+```
+
+[![Architecture Mobile](https://i.ibb.co/yFh9VqWD/wgetpanel-mobile-architeture.jpg)](https://i.ibb.co/yFh9VqWD/wgetpanel-mobile-architeture.jpg)
+
 Errors: `{"error":{"code":"…","message":"…"}}` with 400 / 401 / 404 / 429 / 503.
 Tokens expire after `WGP_TOKEN_TTL_DAYS` (default 180, 0 = never); `GET /api/v1/auth/tokens` lists devices and
 `DELETE /api/v1/auth/tokens/{id}` revokes one.
