@@ -1010,7 +1010,7 @@ def build_parser():
     sub = p.add_subparsers(dest="command", required=True, metavar="COMMAND")
 
     def add(name, fn, help, **kw):
-        sp = sub.add_parser(name, help=help, description=help, parents=[common], **kw)
+        sp = sub.add_parser(name, help=help, description=help, formatter_class=CustomRichHelpFormatter, parents=[common], **kw)
         sp.set_defaults(func=fn)
         return sp
 
