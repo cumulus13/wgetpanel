@@ -24,6 +24,13 @@ class SchedulerTests(PanelTestCase):
         Download.objects.filter(pk=items[0].pk).update(status="completed")
         self.assertEqual(scheduler.tick(), [items[2].pk])  # slot freed
 
+    def test_start_clears_stale_retry_message(self):
+        conf.set("scheduler.max_downloads", 1)
+        d = self.make_download("http://h/x", status="queued", error="Auto retry 2/5 in 6s after: Network failure (exit 4)", retry_count=2)
+        self.assertEqual(scheduler.tick(), [d.pk])
+        d.refresh_from_db()
+        self.assertEqual((d.status, d.error, d.retry_count), ("running", "", 2))   # counter is kept, only the message goes
+
     def test_paused_does_not_use_slot_and_is_not_started(self):
         conf.set("scheduler.max_downloads", 1)
         a, b = self.queue(2)

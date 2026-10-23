@@ -25,8 +25,9 @@ def make_blob(size, seed=1):
 class FileServer:
     """Tiny HTTP server with Range support and optional throttling (sleep per 32 KB chunk)."""
 
-    def __init__(self, files, delay=0.0, auth=None, ranges=True):
+    def __init__(self, files, delay=0.0, auth=None, ranges=True, status_map=None):
         self.files, self.delay, self.requests, self.auth, self.ranges = files, delay, [], auth, ranges
+        self.status_map = status_map if status_map is not None else {}  # path -> forced HTTP status (e.g. 503)
         outer = self
 
         class H(BaseHTTPRequestHandler):
@@ -37,6 +38,12 @@ class FileServer:
 
             def do_GET(self):
                 outer.requests.append((self.path, self.headers.get("Range")))
+                forced = outer.status_map.get(self.path)
+                if forced:
+                    self.send_response(forced)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
                 if outer.auth:
                     import base64
                     want = "Basic " + base64.b64encode(f"{outer.auth[0]}:{outer.auth[1]}".encode()).decode()

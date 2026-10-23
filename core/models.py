@@ -56,6 +56,9 @@ class Download(models.Model):
     exit_code = models.IntegerField(null=True, blank=True)
     pid = models.IntegerField(null=True, blank=True)
     requeues = models.PositiveSmallIntegerField(default=0)
+    # auto retry: None = use setting retry.default_max, 0 = off, -1 = retry forever, n = n consecutive failures
+    retry_max = models.IntegerField(null=True, blank=True)
+    retry_count = models.PositiveIntegerField(default=0)  # consecutive failures since the last progress
 
     created_at = models.DateTimeField(default=timezone.now)
     dispatched_at = models.DateTimeField(null=True, blank=True)

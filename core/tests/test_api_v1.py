@@ -153,7 +153,7 @@ class DownloadTests(V1Base):
         lst = self.get("/api/v1/downloads", tok).json()
         self.assertEqual([d["id"] for d in lst["downloads"]], [pk])
         self.assertEqual(lst["counts"]["queued"], 1)
-        self.assertEqual(self.post("/api/v1/downloads/actions", tok, {"action": "pause", "ids": [pk]}).json(), {"affected": 1})
+        self.assertEqual(self.post("/api/v1/downloads/actions", tok, {"action": "pause", "ids": [pk]}).json()["affected"], 1)
         self.assertEqual(self.get("/api/v1/downloads?status=paused", tok).json()["downloads"][0]["status"], "paused")
         self.assertEqual(self.get("/api/v1/downloads?status=queued", tok).json()["downloads"], [])
         self.assertEqual(self.get("/api/v1/downloads?status=bogus", tok).status_code, 400)
@@ -177,7 +177,7 @@ class DownloadTests(V1Base):
         self.assertEqual(ids(tb), {b.pk})
         self.assertEqual(ids(tadm), {a.pk, b.pk})
         self.assertEqual(self.get(f"/api/v1/downloads/{a.pk}", tb).status_code, 404)
-        self.assertEqual(self.post("/api/v1/downloads/actions", tb, {"action": "remove", "ids": [a.pk]}).json(), {"affected": 0})
+        self.assertEqual(self.post("/api/v1/downloads/actions", tb, {"action": "remove", "ids": [a.pk]}).json()["affected"], 0)
         self.assertTrue(Download.objects.filter(pk=a.pk).exists())
 
     def test_summary_has_no_list_but_counts(self):
@@ -210,7 +210,8 @@ class DownloadTests(V1Base):
             match = resolve(path.replace("{id}", "1"))
             self.assertTrue(match.url_name.startswith("v1-"), path)
             self.assertTrue(ops, path)
-        routes = {"v1-token", "v1-me", "v1-tokens", "v1-token-detail", "v1-summary", "v1-downloads", "v1-actions", "v1-detail", "v1-file", "v1-events"}
+        routes = {"v1-token", "v1-me", "v1-tokens", "v1-token-detail", "v1-summary", "v1-downloads", "v1-actions", "v1-detail", "v1-file", "v1-events",
+              "v1-settings", "v1-rules", "v1-rule-detail"}
         documented = {resolve(p.replace("{id}", "1")).url_name for p in doc["paths"]}
         self.assertEqual(routes, documented)
 

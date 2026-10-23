@@ -4,7 +4,7 @@ from datetime import timedelta
 from celery import shared_task
 from django.utils import timezone
 
-from . import conf, events, live, runner, scheduler
+from . import conf, events, files, live, runner, scheduler
 from .models import Download
 
 log = logging.getLogger(__name__)
@@ -46,8 +46,11 @@ def maintenance():
     if not days:
         return 0
     cutoff = timezone.now() - timedelta(days=days)
-    old = list(Download.objects.filter(status__in=Download.FINISHED, finished_at__lt=cutoff).values_list("pk", flat=True))
-    for pk in old:
-        live.drop_series(pk)
-    Download.objects.filter(pk__in=old).delete()
+    old = list(Download.objects.filter(status__in=Download.FINISHED, finished_at__lt=cutoff))
+    delete = conf.get("files.delete_on_retention")
+    for d in old:
+        if delete:
+            files.delete(d)
+        live.drop_series(d.pk)
+    Download.objects.filter(pk__in=[d.pk for d in old]).delete()
     return len(old)

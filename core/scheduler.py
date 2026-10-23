@@ -41,7 +41,7 @@ def tick():
             .values_list("id", flat=True)[:slots]
         )
         if ids:
-            Download.objects.filter(id__in=ids).update(status=Download.RUNNING, dispatched_at=now, pid=None)
+            Download.objects.filter(id__in=ids).update(status=Download.RUNNING, dispatched_at=now, pid=None, error="")
     return ids
 
 

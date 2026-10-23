@@ -6,8 +6,7 @@ urlpatterns = [
     path("", views.dashboard, name="dashboard"),
     path("settings/", views.settings_page, name="settings"),
     path("rules/", views.rules_page, name="rules"),
-    # path("healthz", views.healthz, name="healthz"),
-    path("healthz/", views.healthz, name="healthz"),
+    path("healthz", views.healthz, name="healthz"),
     path("api/snapshot/", views.snapshot, name="api-snapshot"),
     path("api/add/", views.add, name="api-add"),
     path("api/action/", views.action, name="api-action"),
@@ -27,4 +26,7 @@ urlpatterns = [
     path("api/v1/downloads/<int:pk>", api_v1.download_detail, name="v1-detail"),
     path("api/v1/downloads/<int:pk>/file", api_v1.file, name="v1-file"),
     path("api/v1/events", api_v1.event_endpoint, name="v1-events"),
+    path("api/v1/settings", api_v1.settings_endpoint, name="v1-settings"),
+    path("api/v1/rules", api_v1.rules, name="v1-rules"),
+    path("api/v1/rules/<int:pk>", api_v1.rule_detail, name="v1-rule-detail"),
 ]

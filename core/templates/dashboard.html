@@ -58,6 +58,9 @@
       <div><label class="label" for="f-name">File name (single URL)</label><input id="f-name" class="input" placeholder="auto"></div>
       <div><label class="label" for="f-rate">Speed limit (KB/s)</label><input id="f-rate" class="input" type="number" min="0" placeholder="unlimited"></div>
       <div><label class="label" for="f-start">Start at</label><input id="f-start" class="input" type="datetime-local"></div>
+      <div class="sm:col-span-2"><label class="label" for="f-retry">Auto retry on temporary errors</label>
+        <select id="f-retry" class="input"><option value="">Server default</option><option value="off">Off</option><option value="1">1 time</option><option value="3">3 times</option><option value="5">5 times</option><option value="10">10 times</option><option value="always">Always (never give up)</option></select>
+        <p class="mt-1 text-xs text-slate-500">Network failures and HTTP 408/429/5xx only, with growing delay. A 404 or wrong password is never retried.</p></div>
     </div>
     <details class="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
       <summary class="cursor-pointer text-sm font-medium">Advanced</summary>

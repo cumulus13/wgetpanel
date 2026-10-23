@@ -75,9 +75,17 @@ await for (final line in resp.stream.transform(utf8.decoder).transform(const Lin
 // on error/close: wait with exponential backoff, reconnect, the first event is a fresh snapshot
 ```
 
+## Other endpoints
+
+* `POST /api/v1/downloads` accepts `retry` (`3`, `-1` / `"always"`, `0` / `"off"`; omit = server default). Rows carry
+  `retry_max`, `retry_count`, `retry_limit`.
+* `POST /api/v1/downloads/actions` accepts `delete_files` (omit = server setting) and answers
+  `{affected, files_deleted, files_pending}`.
+* Staff only: `GET/POST /api/v1/settings` (values + schema with types, bounds and help), `GET/POST /api/v1/rules`,
+  `PATCH/DELETE /api/v1/rules/{id}`.
+
 ## Not included (yet)
 
 * Push while the app is not running (iOS background, killed Android app): needs APNs / FCM, which requires
   credentials owned by whoever publishes the app. Deliberately left out of a self-hosted server.
 * Range requests for `GET /downloads/{id}/file` (a mobile download cannot resume).
-* Settings and speed rules over `/api/v1` (admin stays in the web UI).

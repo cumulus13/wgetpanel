@@ -13,11 +13,12 @@ import re
 import signal
 import subprocess
 import time
+from datetime import timedelta
 
 from django.conf import settings
 from django.utils import timezone
 
-from . import events, live, wget
+from . import events, files, live, retry, wget
 from .models import Download
 
 log = logging.getLogger(__name__)
@@ -111,6 +112,7 @@ def _spawn(d, rate):
 
 def _supervise(d):
     pk = d.pk
+    start_size = _size(d.path)  # to tell whether this run made progress (resets the retry counter)
     while True:
         d.refresh_from_db()
         if d.status != Download.RUNNING:
@@ -140,9 +142,17 @@ def _supervise(d):
                 status=Download.COMPLETED, downloaded_bytes=size, total_bytes=total or size, exit_code=0, pid=None, finished_at=now, error="")
         else:
             tail = "\n".join(l for l in _log_tail(d.log_path, 1500).splitlines() if l.strip())[-800:]
-            Download.objects.filter(pk=pk, status=Download.RUNNING).update(
-                status=Download.ERROR, downloaded_bytes=size, total_bytes=total, exit_code=code, pid=None, finished_at=now,
-                error=wget.describe_exit(code, tail))
+            plan = retry.plan(d, code, _log_tail(d.log_path, 4096), progressed=size > start_size)
+            if plan.retry:
+                limit = "∞" if plan.limit == -1 else plan.limit
+                head = f"Auto retry {plan.count}/{limit} in {plan.delay}s after: {wget.EXIT_MESSAGES.get(code, f'exit {code}')} (exit {code})"
+                Download.objects.filter(pk=pk, status=Download.RUNNING).update(
+                    status=Download.QUEUED, downloaded_bytes=size, total_bytes=total, exit_code=code, pid=None,
+                    retry_count=plan.count, not_before=now + timedelta(seconds=plan.delay), error=f"{head}\n{tail}")
+            else:
+                Download.objects.filter(pk=pk, status=Download.RUNNING).update(
+                    status=Download.ERROR, downloaded_bytes=size, total_bytes=total, exit_code=code, pid=None, finished_at=now,
+                    error=wget.describe_exit(code, tail), retry_count=plan.count)
         events.emit(pk)
         return
 
@@ -197,12 +207,4 @@ def _monitor(d, proc, rate):
 
 
 def _remove_files(d):
-    for p in (d.path,):
-        try:
-            os.remove(p)
-        except OSError:
-            pass
-    try:
-        os.remove(d.log_path)
-    except OSError:
-        pass
+    files.delete(d)

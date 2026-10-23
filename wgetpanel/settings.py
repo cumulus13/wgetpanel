@@ -145,7 +145,7 @@ CELERY_RESULT_BACKEND = None
 CELERY_TASK_IGNORE_RESULT = True
 CELERY_TASK_ACKS_LATE = False  # long running tasks + redis visibility_timeout = duplicates; the reaper handles lost workers
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
-CELERY_TASK_DEFAULT_QUEUE = "celery"
+CELERY_TASK_DEFAULT_QUEUE = os.getenv("WGP_QUEUE_NAME", "celery")
 CELERY_TASK_ROUTES = {"core.tasks.run_download": {"queue": "downloads"}}
 CELERY_TASK_ALWAYS_EAGER = False
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True

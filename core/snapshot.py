@@ -3,7 +3,7 @@ import os
 
 from django.utils import timezone
 
-from . import conf, live, services
+from . import conf, live, retry, services
 from .models import Download, SchedulerState
 
 
@@ -26,6 +26,7 @@ def row(d, lv):
         "position": d.position, "not_before": d.not_before.isoformat() if d.not_before else None,
         "created": d.created_at.isoformat(), "finished": d.finished_at.isoformat() if d.finished_at else None,
         "has_auth": bool(d.http_user),
+        "retry_max": d.retry_max, "retry_count": d.retry_count, "retry_limit": retry.limit_for(d),
     }
 
 
@@ -56,6 +57,7 @@ def build_snapshot(user, status=None, include_downloads=True):
     out = {
         "counts": counts, "speed": speed, "series": series,
         "max_downloads": conf.get("scheduler.max_downloads"), "redis": redis_ok,
+        "delete_files_default": conf.get("files.delete_on_remove"),
         "scheduler_alive": bool(last_tick and (timezone.now() - last_tick).total_seconds() < 30),
         "server_time": timezone.now().isoformat(),
     }

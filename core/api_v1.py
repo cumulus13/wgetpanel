@@ -19,7 +19,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from . import conf, events, live, services, snapshot, tokens
-from .models import ApiToken, Download
+from .models import ApiToken, Download, SpeedRule
 
 log = logging.getLogger(__name__)
 LOGIN_MAX_ATTEMPTS = 10
@@ -148,7 +148,8 @@ def downloads(request):
             nb = timezone.make_aware(nb)
     created, errors = services.create_downloads(
         request.user, urls, directory=data.get("directory"), filename=data.get("filename"), options=data.get("options") or {},
-        not_before=nb, http_user=str(data.get("http_user") or "")[:255], http_password=str(data.get("http_password") or ""))
+        not_before=nb, http_user=str(data.get("http_user") or "")[:255], http_password=str(data.get("http_password") or ""),
+        retry_max=data.get("retry"))
     body = {"created": [d.pk for d in created], "errors": errors}
     return JsonResponse(body, status=201 if created else 400)
 
@@ -183,8 +184,10 @@ def actions(request):
         return error(400, "bad_request", "ids must be integers")
     if data["action"] != "purge" and not ids:
         return error(400, "bad_request", "ids required")
-    n = services.apply_action(request.user, data["action"], ids, delete_files=bool(data.get("delete_files")))
-    return JsonResponse({"affected": n})
+    stats = {}
+    delete_files = bool(data["delete_files"]) if data.get("delete_files") is not None else None  # None = server setting
+    n = services.apply_action(request.user, data["action"], ids, delete_files=delete_files, stats=stats)
+    return JsonResponse({"affected": n, **stats})
 
 
 @bearer
@@ -195,6 +198,79 @@ def file(request, pk):
         return error(404, "not_found", "No such completed download")
     path, name = found
     return FileResponse(open(path, "rb"), as_attachment=True, filename=name)
+
+
+# ------------------------------------------------------------------ admin: settings + speed rules (staff only)
+def staff_bearer(view):
+    @bearer
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_staff:
+            return error(403, "forbidden", "Staff only")
+        return view(request, *args, **kwargs)
+    wrapper.__name__ = view.__name__
+    return wrapper
+
+
+def _schema():
+    return [{"key": o.key, "type": o.type, "label": o.label, "help": o.help, "group": o.group, "default": conf.default(o.key),
+             "choices": list(o.choices), "min": o.min, "max": o.max} for o in conf.REGISTRY.values()]
+
+
+@staff_bearer
+@require_http_methods(["GET", "POST"])
+def settings_endpoint(request):
+    if request.method == "POST":
+        data = _json(request)
+        if data is None:
+            return error(400, "bad_request", "JSON object of {key: value} required")
+        unknown = sorted(k for k in data if k not in conf.REGISTRY)
+        errors = {}
+        for key, value in data.items():
+            if key in conf.REGISTRY:
+                try:
+                    conf.set(key, value)
+                except (ValueError, TypeError) as exc:
+                    errors[key] = str(exc)
+        if errors or unknown:
+            return JsonResponse({"error": {"code": "invalid_settings", "message": "Some values were rejected (valid ones were saved)"},
+                                 "errors": errors, "unknown": unknown, "values": conf.all_values()}, status=400)
+    return JsonResponse({"values": conf.all_values(), "schema": _schema()})
+
+
+@staff_bearer
+@require_http_methods(["GET", "POST"])
+def rules(request):
+    if request.method == "POST":
+        data = _json(request)
+        if data is None:
+            return error(400, "bad_request", "JSON body required")
+        try:
+            rule = SpeedRule.objects.create(**services.parse_rule(data))
+        except ValueError as exc:
+            return error(400, "bad_request", str(exc))
+        return JsonResponse({"rule": services.rule_dict(rule)}, status=201)
+    return JsonResponse({"rules": [services.rule_dict(r) for r in SpeedRule.objects.all()]})
+
+
+@staff_bearer
+@require_http_methods(["PATCH", "DELETE"])
+def rule_detail(request, pk):
+    rule = SpeedRule.objects.filter(pk=pk).first()
+    if rule is None:
+        return error(404, "not_found", "No such rule")
+    if request.method == "DELETE":
+        rule.delete()
+        return JsonResponse({"deleted": True})
+    data = _json(request)
+    if data is None:
+        return error(400, "bad_request", "JSON body required")
+    try:
+        fields = services.parse_rule(data, partial=True)
+    except ValueError as exc:
+        return error(400, "bad_request", str(exc))
+    SpeedRule.objects.filter(pk=pk).update(**fields)
+    rule.refresh_from_db()
+    return JsonResponse({"rule": services.rule_dict(rule)})
 
 
 # ------------------------------------------------------------------ server sent events

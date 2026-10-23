@@ -133,6 +133,29 @@ Environment: database, broker, secret, hosts/TLS flags (see `.env.example`). Eve
 **Settings** page (max simultaneous downloads, per-user queue cap, retention, default retries/timeout/UA/limit,
 allowed download directories, SSRF guard) and the **Speed rules** page.
 
+## Auto retry
+
+Per download (`retry` in the API, `--retry` in the CLI, a select in the web form) or as a server default
+(`retry.default_max`): a number of consecutive failures, `always` / `-1` = never give up, `0` / `off` = no retry.
+The delay starts at `retry.delay_seconds` and doubles after every failed attempt up to `retry.max_delay_seconds`;
+the download goes back to *queued* with a start time and `wget -c` continues from the bytes on disk. A run that
+downloaded new bytes resets the counter. **Only temporary errors are retried**: network failure (wget exit 4) and
+HTTP 408 / 425 / 429 / 5xx. A 404, wrong password, TLS error or full disk is never retried, not even with `always`.
+Default is off (`retry.default_max = 0`).
+
+## Deleting the real files
+
+Cancel / remove / purge accept `delete_files` (web: a prompt, API: `delete_files: true|false`, CLI:
+`--delete-files` / `--keep-files`). Omitting it applies the setting `files.delete_on_remove` (default off), and
+`files.delete_on_retention` does the same for the automatic history cleanup. Safety: the parent directory of the file is
+resolved and must be inside an allowed download directory, then only that entry is removed (a symlink is removed, never its
+target). Running downloads are stopped first and their file is deleted by the worker (`files_pending` in the response).
+
+## Command line client
+
+`cli/wgp.py` covers the whole API (list, detail, add with schedule/retry/limits, actions, get, live `watch`, ASCII
+speed graphs, settings, rules, tokens). See [cli/README.md](cli/README.md).
+
 ## Mobile API
 
 `/api/v1/*` with per-device bearer tokens, a Server-Sent Events stream for live status/progress (no Firebase, no
@@ -165,12 +188,13 @@ ntfy app needed) and an OpenAPI document at `/api/v1/openapi.json`. Details, eve
 ## Tests
 
 ```bash
+pip install -r requirements-dev.txt                                   # adds requests + asciichartpy for the CLI tests
 export DJANGO_DEBUG=1 DATABASE_URL=postgres://user:pass@localhost/db   # role needs CREATEDB
 export TEST_REDIS_URL=redis://localhost:6379/15                         # DB is flushed!
 python manage.py test
 ```
 
-The suite runs a real `wget` against a local Range-capable server: completion + checksum, 404/refused/auth
+The suite (145 tests) runs a real `wget` against a local Range-capable server: completion + checksum, 404/refused/auth
 errors, pause→resume, cancel, speed-rule restart, `--limit-rate`, speed series, scheduler limits and concurrent
 ticks, reaper, API permissions/CSRF/SSRF/path traversal.
 

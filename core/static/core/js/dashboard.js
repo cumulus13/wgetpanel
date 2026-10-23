@@ -66,6 +66,11 @@
   }
 
   // ---- rows
+  // delete_files: when the server setting says "delete by default" send nothing (server decides), otherwise ask
+  function deleteExtra(question) {
+    if (state.last && state.last.delete_files_default) return {};
+    return { delete_files: confirm(question) };
+  }
   function actionBtn(label, title, fn, danger) {
     return h("button", { type: "button", class: "btn-icon" + (danger ? " text-red-600" : ""), title: title, "aria-label": title, text: label, onclick: fn });
   }
@@ -104,7 +109,8 @@
     r.bar.className = "h-full rounded-full transition-all " + (d.status === "error" ? "bg-red-500" : d.status === "completed" ? "bg-emerald-500" : "bg-indigo-600") + (pct == null && d.status === "running" ? " animate-pulse" : "");
     r.prog.textContent = (pct == null ? "" : pct + "% · ") + W.bytes(d.downloaded) + (d.total ? " / " + W.bytes(d.total) : "");
     r.speed.textContent = d.status === "running" ? W.rate(d.speed) : "–";
-    r.eta.textContent = d.status === "running" ? W.eta(d.eta) : "–";
+    r.eta.textContent = d.status === "running" ? W.eta(d.eta)
+      : (d.status === "queued" && d.not_before && new Date(d.not_before) > new Date() ? "at " + new Date(d.not_before).toLocaleTimeString() : "–");
     r.chk.checked = state.selected.has(d.id);
     if (r.sig !== d.status) {
       r.sig = d.status;
@@ -116,10 +122,10 @@
       a.push(actionBtn("ⓘ", "Details", function () { openDetail(d.id); }));
       if (d.status === "running" || d.status === "queued" || d.status === "paused") {
         a.push(actionBtn("✕", "Cancel", function () {
-          if (confirm("Cancel this download?")) act("cancel", [d.id], { delete_files: confirm("Also delete the partial file?") });
+          if (confirm("Cancel this download?")) act("cancel", [d.id], deleteExtra("Also delete the partial file from disk?"));
         }, true));
       } else {
-        a.push(actionBtn("🗑", "Remove from list", function () { act("remove", [d.id]); }, true));
+        a.push(actionBtn("🗑", "Remove from list", function () { act("remove", [d.id], deleteExtra(d.status === "completed" ? "Also delete the file from disk?" : "Also delete the partial file from disk?")); }, true));
       }
       r.actions.replaceChildren.apply(r.actions, a);
     }
@@ -196,7 +202,8 @@
     document.getElementById("d-title").textContent = d.filename;
     var rows = [["Status", d.status], ["URL", d.url], ["Directory", d.directory], ["Size", d.total ? W.bytes(d.total) : "unknown"],
       ["Downloaded", W.bytes(d.downloaded)], ["Speed", d.status === "running" ? W.rate(d.speed) : "–"],
-      ["Exit code", r.data.exit_code == null ? "–" : String(r.data.exit_code)], ["Restarts after worker loss", String(r.data.requeues)]];
+      ["Exit code", r.data.exit_code == null ? "–" : String(r.data.exit_code)], ["Restarts after worker loss", String(r.data.requeues)],
+      ["Auto retry", d.retry_limit === 0 ? "off" : d.retry_count + " failed in a row, limit " + (d.retry_limit === -1 ? "∞ (always)" : d.retry_limit)]];
     if (d.error) rows.push(["Error", d.error]);
     var nodes = [];
     rows.forEach(function (x) {
@@ -233,6 +240,7 @@
       http_user: v("f-user"), http_password: document.getElementById("f-pass").value
     };
     if (v("f-start")) body.not_before = new Date(v("f-start")).toISOString();
+    if (v("f-retry")) body.retry = v("f-retry");
     var r = await W.api("/api/add/", body), box = document.getElementById("add-errors");
     if (!r) return;
     var errs = r.data.errors || [];
@@ -255,7 +263,7 @@
     b.addEventListener("click", function () {
       var ids = Array.from(state.selected), a = b.dataset.bulk, extra = {};
       if ((a === "remove" || a === "cancel") && !confirm(a + " " + ids.length + " download(s)?")) return;
-      if (a === "remove" || a === "cancel") extra.delete_files = confirm("Also delete the downloaded / partial files from disk?");
+      if (a === "remove" || a === "cancel") extra = deleteExtra("Also delete the downloaded / partial files from disk?");
       act(a, ids, extra).then(function () { if (a === "remove") state.selected.clear(); });
     });
   });

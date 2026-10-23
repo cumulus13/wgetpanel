@@ -1,6 +1,5 @@
 import json
 import os
-from datetime import datetime
 
 from django.contrib.auth.decorators import login_required
 from django.db import connection
@@ -116,7 +115,8 @@ def add(request):
             return JsonResponse({"error": "Invalid options"}, status=400)
     created, errors = services.create_downloads(
         request.user, urls, directory=data.get("directory"), filename=data.get("filename"), options=options,
-        not_before=nb, http_user=(data.get("http_user") or "")[:255], http_password=data.get("http_password") or "")
+        not_before=nb, http_user=(data.get("http_user") or "")[:255], http_password=data.get("http_password") or "",
+        retry_max=data.get("retry"))
     return JsonResponse({"created": [d.pk for d in created], "errors": errors}, status=201 if created else 400)
 
 
@@ -138,8 +138,10 @@ def action(request):
         return JsonResponse({"error": "Invalid ids"}, status=400)
     if data["action"] != "purge" and not ids:
         return JsonResponse({"error": "No ids"}, status=400)
-    n = services.apply_action(request.user, data["action"], ids, delete_files=bool(data.get("delete_files")))
-    return JsonResponse({"affected": n})
+    stats = {}
+    delete_files = bool(data["delete_files"]) if data.get("delete_files") is not None else None  # None = server setting
+    n = services.apply_action(request.user, data["action"], ids, delete_files=delete_files, stats=stats)
+    return JsonResponse({"affected": n, **stats})
 
 
 @require_GET
@@ -172,11 +174,6 @@ def settings_api(request):
     return JsonResponse({"values": conf.all_values()})
 
 
-def _rule_dict(r):
-    return {"id": r.pk, "name": r.name, "enabled": r.enabled, "days": r.days, "start": r.start.strftime("%H:%M"),
-            "end": r.end.strftime("%H:%M"), "limit_kbps": r.limit_kbps, "active_now": r.is_active()}
-
-
 @staff_required
 def rules_api(request):
     if request.method == "POST":
@@ -187,18 +184,11 @@ def rules_api(request):
             SpeedRule.objects.filter(pk=data["delete"]).delete()
         else:
             try:
-                fields = {
-                    "name": str(data.get("name") or "Rule")[:100],
-                    "enabled": bool(data.get("enabled", True)),
-                    "days": ",".join(str(int(x)) for x in str(data.get("days") or "").split(",") if x.strip() != "" and 0 <= int(x) <= 6),
-                    "start": datetime.strptime(data.get("start", "00:00"), "%H:%M").time(),
-                    "end": datetime.strptime(data.get("end", "23:59"), "%H:%M").time(),
-                    "limit_kbps": max(0, int(data.get("limit_kbps") or 0)),
-                }
-            except (ValueError, TypeError):
+                fields = services.parse_rule(data)
+            except ValueError:
                 return JsonResponse({"error": "Invalid rule"}, status=400)
             if data.get("id"):
                 SpeedRule.objects.filter(pk=data["id"]).update(**fields)
             else:
                 SpeedRule.objects.create(**fields)
-    return JsonResponse({"rules": [_rule_dict(r) for r in SpeedRule.objects.all()]})
+    return JsonResponse({"rules": [services.rule_dict(r) for r in SpeedRule.objects.all()]})
