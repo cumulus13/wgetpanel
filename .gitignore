@@ -22,3 +22,9 @@ gitignore_backup/
 support.jpg
 support1.jpg
 support1.png
+
+# Added entries (4 items)
+dist/
+*.egg-info/
+*.ini
+*.sha256

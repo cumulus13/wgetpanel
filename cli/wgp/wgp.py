@@ -988,7 +988,11 @@ def cmd_rules(args, api, cfg):
 
 # ------------------------------------------------------------------ argument parser
 def build_parser():
-    p = argparse.ArgumentParser(prog="wgp", description="Command line client for wgetpanel.", formatter_class=argparse.RawDescriptionHelpFormatter,
+    try:
+        from rchf import CustomRichHelpFormatter
+    except:
+        CustomRichHelpFormatter = argparse.RawDescriptionHelpFormatter
+    p = argparse.ArgumentParser(prog="wgp", description="Command line client for wgetpanel.", formatter_class=CustomRichHelpFormatter,
                                 epilog=__doc__.split("\n", 2)[2] if __doc__ else None)
     common = argparse.ArgumentParser(add_help=False)  # same options, valid before AND after the sub-command
 
@@ -1017,6 +1021,7 @@ def build_parser():
     s.add_argument("--device", help="device name shown in `wgp tokens` (default: hostname)")
     add("logout", cmd_logout, "revoke this device's token and forget it")
     add("whoami", cmd_whoami, "show the current user and token")
+    add("w", cmd_whoami, "show the current user and token")
     s = add("tokens", cmd_tokens, "list the devices (tokens) of your account, or revoke one")
     s.add_argument("token_action", nargs="?", choices=["list", "revoke"], default="list")
     s.add_argument("id", nargs="?", type=int)
@@ -1133,6 +1138,9 @@ def main(argv=None):
         except (AttributeError, ValueError):
             pass
     parser = build_parser()
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit()
     args = parser.parse_args(argv)
     cfg = load_config()
     try:

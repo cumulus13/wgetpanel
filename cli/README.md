@@ -1,4 +1,4 @@
-# wgp: command line client for wgetpanel
+# wgp: command line client for wgetpanel (github.com/cumulus13/wgetpanel)
 
 One Python file (`wgp.py`), talks to the server's **API v1** with a per-device token. Needs `requests` and
 `asciichartpy` (graphs).
@@ -53,3 +53,14 @@ wgp list --json | jq '.downloads[] | select(.status=="error") | .id'
 Notes: `--at HH:MM` / `--in` use the local clock of the machine running `wgp`. `get` cannot resume an interrupted
 transfer (the server does not support Range requests yet). Colors and unicode bars are switched off for pipes,
 `NO_COLOR` and `WGP_ASCII=1`.
+
+## 👤 Author
+        
+[Hadi Cahyadi](mailto:cumulus13@gmail.com)
+    
+
+[![Buy Me a Coffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/cumulus13)
+
+[![Donate via Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/cumulus13)
+ 
+[Support me on Patreon](https://www.patreon.com/cumulus13)

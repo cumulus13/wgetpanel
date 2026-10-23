@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wgp"
+version = "0.1.0"
+authors = [
+  { name="Hadi Cahyadi", email="cumulus13@gmail.com" },
+]
+description = "Command line client for wgetpanel (API v1)"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+]
+dependencies = [
+    "requests",
+    "asciichartpy",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/cumulus13/wgetpanel"
+"Bug Tracker" = "https://github.com/cumulus13/wgetpanel/issues"
+
+[project.scripts]
+wgp = "wgp.wgp:main"
+
+[tool.setuptools]
+packages = ["wgp"]
