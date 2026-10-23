@@ -17,7 +17,7 @@ from core import conf, runner
 from core.models import ApiToken, Download, SpeedRule
 from core.tests.helpers import FileServer, PanelTestCase, make_blob
 
-spec = importlib.util.spec_from_file_location("wgp", Path(__file__).resolve().parents[2] / "cli" / "wgp.py")
+spec = importlib.util.spec_from_file_location("wgp", Path(__file__).resolve().parents[2] / "cli" / "wgp" / "wgp.py")
 wgp = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(wgp)
 PW = "pw-12345-xyz"
