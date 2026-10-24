@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+
+# File: cli/wgp/wgp.py
+# Author: Hadi Cahyadi <cumulus13@gmail.com>
+# Date: 2026-10-24
+# Description: wgp - command line client for wgetpanel (API v1)
+# License: MIT
+
 """wgp - command line client for wgetpanel (API v1).
 
     wgp login http://localhost:8000 -u admin          # token is stored in ~/.config/wgetpanel/config.json (0600)

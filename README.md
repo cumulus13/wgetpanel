@@ -153,7 +153,7 @@ target). Running downloads are stopped first and their file is deleted by the wo
 
 ## Command line client
 
-`cli/wgp.py` covers the whole API (list, detail, add with schedule/retry/limits, actions, get, live `watch`, ASCII
+`cli/wgp/wgp.py` covers the whole API (list, detail, add with schedule/retry/limits, actions, get, live `watch`, ASCII
 speed graphs, settings, rules, tokens). See [cli/README.md](cli/README.md).
 
 ## Mobile API
