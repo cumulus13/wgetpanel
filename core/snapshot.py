@@ -26,7 +26,7 @@ def row(d, lv):
         "position": d.position, "not_before": d.not_before.isoformat() if d.not_before else None,
         "created": d.created_at.isoformat(), "finished": d.finished_at.isoformat() if d.finished_at else None,
         "has_auth": bool(d.http_user),
-        "retry_max": d.retry_max, "retry_count": d.retry_count, "retry_limit": retry.limit_for(d),
+        "retry_max": d.retry_max, "retry_count": d.retry_count, "retry_total": d.retry_total, "retry_limit": retry.limit_for(d),
     }
 
 

@@ -8,7 +8,7 @@ staticfiles/
 downloads/
 celerybeat-schedule*
 tailwind/node_modules/
-
+dump.rdb
 # Ignore Sublime Text project files
 *.sublime-project
 *.sublime-workspace
@@ -28,3 +28,11 @@ dist/
 *.egg-info/
 *.ini
 *.sha256
+
+# Added entries (3 items)
+ANSWER*.md
+QUEST*.md
+PLAN*.md
+
+# Added entries (1 items)
+*.log

@@ -1,4 +1,4 @@
-# wgp: command line client for wgetpanel (github.com/cumulus13/wgetpanel)
+# wgp: command line client for [github.com/cumulus13/wgetpanel](https://github.com/cumulus13/wgetpanel)
 
 wgetpanel cli client. talks to the server's **API v1** with a per-device token. Needs `requests` and
 `asciichartpy` (graphs).
@@ -36,11 +36,13 @@ Exit codes: `0` ok, `1` refused / nothing affected / a waited download failed, `
 | `cancel/remove ID --delete-files` / `--keep-files` | also delete the file on the server; no flag = server setting `files.delete_on_remove` |
 | `top bottom up down ID...` | reorder queued downloads |
 | `purge [ID...] [--delete-files]` | remove finished downloads from the list |
-| `get ID [-o PATH] [--force]` | copy a finished file from the server (progress bar, `.part` then rename) |
+| `get ID [-o PATH] [--force] [--no-resume]` | copy a finished file from the server (progress bar); an interrupted transfer **resumes** when you run the same command again |
 | `graph [ID] [--follow]` | ASCII speed graph (total or one download) |
 | `watch [ID...]` | live dashboard over SSE: summary, speed graph, table |
 | `events [--json] [--type T] [--count N]` | raw event stream for scripts |
 | `settings` / `settings get KEY` / `settings set KEY VALUE ...` | staff: server settings (`-v` shows help texts) |
+| `notify` / `notify set --ntfy on --events completed,error --retry-interval 60` / `notify rotate-topic` | your own notification targets: a private ntfy topic (the command prints what to subscribe to), optional GNTP receiver |
+| `notify-test [--global]` | send a test message to your own targets (`--global`: the server's channel, staff) and show the result per transport |
 | `rules` / `rules add NAME --from 09:00 --to 17:00 --limit 256 --days mon-fri` / `edit` / `enable` / `disable` / `delete ID` | staff: speed rules |
 
 Examples:
@@ -54,8 +56,7 @@ wgp settings set retry.default_max 3 files.delete_on_remove true
 wgp list --json | jq '.downloads[] | select(.status=="error") | .id'
 ```
 
-Notes: `--at HH:MM` / `--in` use the local clock of the machine running `wgp`. `get` cannot resume an interrupted
-transfer (the server does not support Range requests yet). Colors and unicode bars are switched off for pipes,
+Notes: `--at HH:MM` / `--in` use the local clock of the machine running `wgp`. `get` resumes via HTTP Range + `If-Range` (the partial data is kept as `NAME.part` with its ETag in `NAME.part.etag`; if the file changed on the server it starts over). Colors and unicode bars are switched off for pipes,
 `NO_COLOR` and `WGP_ASCII=1`.
 
 **for cli args with colors use `rchf` (pip install rchf)**

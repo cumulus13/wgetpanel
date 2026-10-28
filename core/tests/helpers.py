@@ -1,6 +1,7 @@
 import hashlib
 import os
 import re
+from urllib.parse import unquote, urlsplit
 import shutil
 import tempfile
 import threading
@@ -38,7 +39,7 @@ class FileServer:
 
             def do_GET(self):
                 outer.requests.append((self.path, self.headers.get("Range")))
-                forced = outer.status_map.get(self.path)
+                forced = outer.status_map.get(self.path) or outer.status_map.get(unquote(urlsplit(self.path).path))
                 if forced:
                     self.send_response(forced)
                     self.send_header("Content-Length", "0")
@@ -53,7 +54,8 @@ class FileServer:
                         self.send_header("Content-Length", "0")
                         self.end_headers()
                         return
-                data = outer.files.get(self.path)
+                req_path = unquote(urlsplit(self.path).path)  # wget percent-encodes spaces; the query string is not part of the key
+                data = outer.files.get(self.path) or outer.files.get(req_path)
                 if data is None:
                     self.send_response(404)
                     self.send_header("Content-Length", "0")

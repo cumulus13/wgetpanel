@@ -7,9 +7,9 @@ from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-from . import conf, live, services, wget
+from . import conf, filesend, live, notify_prefs, services, wget
 from . import snapshot as snapshot_mod
 from .models import Download, SchedulerState, SpeedRule
 
@@ -59,6 +59,35 @@ def settings_page(request):
 @staff_required
 def rules_page(request):
     return render(request, "rules.html")
+
+
+@login_required
+def notifications_page(request):
+    return render(request, "notifications.html")
+
+
+@api_login_required
+@require_http_methods(["GET", "POST"])
+def notify_api(request):
+    if request.method == "POST":
+        data = _body(request)
+        if not isinstance(data, dict):
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
+        try:
+            return JsonResponse(notify_prefs.update(request.user, data))
+        except ValueError as exc:
+            return JsonResponse({"error": str(exc)}, status=400)
+    return JsonResponse(notify_prefs.to_dict(request.user))
+
+
+@api_login_required
+@require_POST
+def notify_test_api(request):
+    data = _body(request) or {}
+    status, payload = notify_prefs.test(request.user, str(data.get("target") or "me"))
+    if status != 200:
+        payload = {"error": payload["error"]["message"]}
+    return JsonResponse(payload, status=status)
 
 
 @require_GET
@@ -144,14 +173,14 @@ def action(request):
     return JsonResponse({"affected": n, **stats})
 
 
-@require_GET
+@require_http_methods(["GET", "HEAD"])
 @api_login_required
 def file_download(request, pk):
     found = services.completed_file(request.user, pk)
     if found is None:
         raise Http404
     path, name = found
-    return FileResponse(open(path, "rb"), as_attachment=True, filename=name)
+    return filesend.serve(request, path, name)
 
 
 # ---------------------------------------------------------------- settings / rules (staff)

@@ -16,9 +16,10 @@ import time
 from datetime import timedelta
 
 from django.conf import settings
+from django.db.models import F
 from django.utils import timezone
 
-from . import events, files, live, retry, wget
+from . import events, files, live, notify, retry, wget
 from .models import Download
 
 log = logging.getLogger(__name__)
@@ -92,6 +93,7 @@ def run(pk):
         Download.objects.filter(pk=pk, status=Download.RUNNING).update(
             status=Download.ERROR, error=f"Internal error: {exc}", finished_at=timezone.now(), pid=None)
         events.emit(pk)
+        notify.dispatch("error", pk)
     finally:
         live.clear_live(pk)
 
@@ -137,23 +139,30 @@ def _supervise(d):
             return
         code = proc.returncode
         now = timezone.now()
+        notice = None  # (event, extra) to announce once the row is updated; only if this run still owned the download
         if code == 0:
-            Download.objects.filter(pk=pk, status=Download.RUNNING).update(
+            n = Download.objects.filter(pk=pk, status=Download.RUNNING).update(
                 status=Download.COMPLETED, downloaded_bytes=size, total_bytes=total or size, exit_code=0, pid=None, finished_at=now, error="")
+            notice = ("completed", {}) if n else None
         else:
             tail = "\n".join(l for l in _log_tail(d.log_path, 1500).splitlines() if l.strip())[-800:]
             plan = retry.plan(d, code, _log_tail(d.log_path, 4096), progressed=size > start_size)
             if plan.retry:
                 limit = "∞" if plan.limit == -1 else plan.limit
-                head = f"Auto retry {plan.count}/{limit} in {plan.delay}s after: {wget.EXIT_MESSAGES.get(code, f'exit {code}')} (exit {code})"
-                Download.objects.filter(pk=pk, status=Download.RUNNING).update(
-                    status=Download.QUEUED, downloaded_bytes=size, total_bytes=total, exit_code=code, pid=None,
+                reason = f"{wget.EXIT_MESSAGES.get(code, f'exit {code}')} (exit {code})"
+                head = f"Auto retry {plan.count}/{limit} in {plan.delay}s after: {reason}"
+                n = Download.objects.filter(pk=pk, status=Download.RUNNING).update(
+                    status=Download.QUEUED, downloaded_bytes=size, total_bytes=total, exit_code=code, pid=None, retry_total=F("retry_total") + 1,
                     retry_count=plan.count, not_before=now + timedelta(seconds=plan.delay), error=f"{head}\n{tail}")
+                notice = ("retry", {"reason": reason, "delay": plan.delay, "count": plan.count, "limit": plan.limit}) if n else None
             else:
-                Download.objects.filter(pk=pk, status=Download.RUNNING).update(
+                n = Download.objects.filter(pk=pk, status=Download.RUNNING).update(
                     status=Download.ERROR, downloaded_bytes=size, total_bytes=total, exit_code=code, pid=None, finished_at=now,
                     error=wget.describe_exit(code, tail), retry_count=plan.count)
+                notice = ("error", {}) if n else None
         events.emit(pk)
+        if notice:
+            notify.dispatch(notice[0], pk, **notice[1])
         return
 
 

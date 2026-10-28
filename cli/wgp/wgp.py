@@ -232,9 +232,9 @@ class Api:
             h["Authorization"] = f"Bearer {self.token}"
         return h
 
-    def request(self, method, path, body=None, params=None, auth=True, stream=False, timeout=None):
+    def request(self, method, path, body=None, params=None, auth=True, stream=False, timeout=None, headers=None):
         try:
-            return self.session.request(method, self.host + path, json=body, params=params, headers=self._headers(auth), stream=stream,
+            return self.session.request(method, self.host + path, json=body, params=params, headers=self._headers(auth, headers), stream=stream,
                                         timeout=timeout or self.timeout, verify=self.verify)
         except requests.exceptions.SSLError as exc:
             raise CliError(f"TLS error talking to {self.host}: {exc}", 2) from exc
@@ -463,8 +463,8 @@ def status_cell(status):
 def retry_text(d):
     lim = d.get("retry_limit", 0)
     if lim == 0:
-        return "off"
-    return f"{d.get('retry_count', 0)} failed in a row, limit {'always' if lim == -1 else lim}"
+        return "off" + (f" ({d['retry_total']} retries so far)" if d.get("retry_total") else "")
+    return f"{d.get('retry_count', 0)} failed in a row, limit {'always' if lim == -1 else lim}; {d.get('retry_total', 0)} retries in total"
 
 
 def download_rows(downloads, with_owner=False):
@@ -752,13 +752,14 @@ def content_disposition_name(header):
 
 
 def cmd_get(args, api, cfg):
-    r = api.request("GET", f"/api/v1/downloads/{args.id}/file", stream=True, timeout=(10, 120))
-    if r.status_code != 200:
-        try:
-            raise CliError(error_text(r.status_code, r.json()), 2 if r.status_code == 401 else 1)
-        except ValueError:
-            raise CliError(f"HTTP {r.status_code}") from None
-    name = os.path.basename(content_disposition_name(r.headers.get("Content-Disposition")) or f"download-{args.id}")
+    """Copy a finished file from the server. Interrupted transfers resume (HTTP Range + If-Range with the file's ETag):
+    just run the same command again; ``--no-resume`` starts over."""
+    head = api.request("HEAD", f"/api/v1/downloads/{args.id}/file")
+    if head.status_code != 200:
+        msg = {401: "not logged in or token expired/revoked: run  wgp login <host>", 404: "No such completed download"}.get(head.status_code, f"HTTP {head.status_code}")
+        raise CliError(msg, 2 if head.status_code == 401 else 1)
+    total, etag = int(head.headers.get("Content-Length") or 0), head.headers.get("ETag", "")
+    name = os.path.basename(content_disposition_name(head.headers.get("Content-Disposition")) or f"download-{args.id}")
     out = Path(args.output) if args.output else Path.cwd()
     if out.is_dir() or (args.output and str(args.output).endswith(("/", os.sep))):
         out.mkdir(parents=True, exist_ok=True)
@@ -766,28 +767,57 @@ def cmd_get(args, api, cfg):
     if out.exists() and not args.force:
         raise CliError(f"{out} exists (use --force to overwrite)", 1)
     out.parent.mkdir(parents=True, exist_ok=True)
-    total = int(r.headers.get("Content-Length") or 0)
-    part, done, t0, last = out.with_name(out.name + ".part"), 0, time.monotonic(), 0.0
+    part = out.with_name(out.name + ".part")
+    meta = out.with_name(out.name + ".part.etag")
+    offset = 0
+    if part.exists() and not args.no_resume:
+        have = part.stat().st_size
+        same = meta.exists() and meta.read_text().strip() == etag and etag != ""
+        if same and have == total:
+            os.replace(part, out)
+            meta.unlink(missing_ok=True)
+            print(f"saved {out}  (already complete)")
+            return 0
+        if same and 0 < have < total:
+            offset = have
+    headers = {"Range": f"bytes={offset}-", "If-Range": etag} if offset else {}
+    r = api.request("GET", f"/api/v1/downloads/{args.id}/file", stream=True, timeout=(10, 120), headers=headers)
+    if r.status_code == 416:  # the partial file does not fit this file any more: start over
+        r.close()
+        offset = 0
+        r = api.request("GET", f"/api/v1/downloads/{args.id}/file", stream=True, timeout=(10, 120))
+    if r.status_code == 200 and offset:  # server ignored the range (file changed): the whole file is coming
+        offset = 0
+    elif r.status_code == 206 and not r.headers.get("Content-Range", "").startswith(f"bytes {offset}-"):
+        raise CliError(f"unexpected Content-Range {r.headers.get('Content-Range')!r}")
+    elif r.status_code not in (200, 206):
+        try:
+            raise CliError(error_text(r.status_code, r.json()), 2 if r.status_code == 401 else 1)
+        except ValueError:
+            raise CliError(f"HTTP {r.status_code}") from None
+    meta.write_text(etag)
+    done, t0, last, started_at = offset, time.monotonic(), 0.0, offset
     try:
-        with open(part, "wb") as fh:
-            for chunk in r.iter_content(chunk_size=256 * 1024):
+        with open(part, "ab" if offset else "wb") as fh:
+            for chunk in iter_chunks(r):
                 fh.write(chunk)
                 done += len(chunk)
                 now = time.monotonic()
                 if sys.stderr.isatty() and now - last > 0.2:
                     last = now
-                    rate = done / max(now - t0, 1e-6)
+                    rate = (done - started_at) / max(now - t0, 1e-6)
                     pct = done * 100 / total if total else None
                     sys.stderr.write(f"\r\x1b[K{bar(pct, 24)} {'' if pct is None else f'{pct:5.1f}% '}{human_bytes(done)}/{human_bytes(total) if total else '?'}  {human_rate(rate)}")
                     sys.stderr.flush()
-        if total and done != total:
-            raise CliError(f"incomplete download ({done} of {total} bytes); partial data kept in {part}")
-        os.replace(part, out)
-    except requests.exceptions.RequestException as exc:
-        raise CliError(f"transfer interrupted: {exc}; partial data kept in {part}") from exc
+    except (requests.exceptions.RequestException, Urllib3Error, OSError) as exc:
+        raise CliError(f"transfer interrupted at {human_bytes(done)} of {human_bytes(total)}: {exc}\n  run the same command again to resume (kept {part})") from exc
+    if total and done != total:
+        raise CliError(f"transfer ended at {done} of {total} bytes; run the same command again to resume (kept {part})")
+    os.replace(part, out)
+    meta.unlink(missing_ok=True)
     if sys.stderr.isatty():
         sys.stderr.write("\r\x1b[K")
-    print(f"saved {out}  ({human_bytes(done)} in {time.monotonic() - t0:.1f}s)")
+    print(f"saved {out}  ({human_bytes(done - started_at)} in {time.monotonic() - t0:.1f}s" + (f", resumed from {human_bytes(started_at)}" if started_at else "") + ")")
     return 0
 
 
@@ -957,6 +987,83 @@ def cmd_settings(args, api, cfg):
     return 0
 
 
+def show_notify(d):
+    n, g = d["ntfy"], d["gntp"]
+    print(f"notifications: {'on' if d['enabled'] else 'OFF'}" + ("" if d["active"] else paint("   (no target active)", "33")))
+    if not n["available"]:
+        print("  ntfy  not configured on this server")
+    else:
+        print(f"  ntfy  {'on' if n['enabled'] else 'off'}" + (f"   subscribe in the ntfy app to: {n['subscribe_url']}" if n["subscribe_url"] and n["enabled"] else ""))
+    if not g["available"]:
+        print("  gntp  not enabled for users on this server")
+    else:
+        print(f"  gntp  {'on' if g['enabled'] else 'off'}   host {g['host'] or '-'}:{g['port']}   password {'set' if g['has_password'] else 'none'}   (allowed: {', '.join(g['allowed_networks'])})")
+    print(f"  events          {', '.join(d['events']) if d['events'] else 'server default (' + ', '.join(d['defaults']['events']) + ')'}")
+    ri = d["retry_interval"]
+    shown = f"{d['defaults']['retry_interval']}s (server default)" if ri is None else ("every retry" if ri == 0 else "never" if ri < 0 else f"every {ri}s")
+    print(f"  retry notices   at most {shown} per download" if ri is None or ri > 0 else f"  retry notices   {shown}")
+
+
+def onoff(value):
+    v = str(value).lower()
+    if v in ("on", "true", "yes", "1"):
+        return True
+    if v in ("off", "false", "no", "0"):
+        return False
+    raise CliError(f"expected on/off, got {value!r}", 2)
+
+
+def cmd_notify(args, api, cfg):
+    action = args.notify_action or "show"
+    if action == "show":
+        d = api.call("GET", "/api/v1/notify")
+        return emit_json(d) or 0 if args.json else (show_notify(d) or 0)
+    body = {}
+    if action == "rotate-topic":
+        body["rotate_topic"] = True
+    else:
+        for key, val in (("enabled", args.enabled), ("ntfy_enabled", args.ntfy), ("gntp_enabled", args.gntp)):
+            if val is not None:
+                body[key] = onoff(val)
+        if args.gntp_host is not None:
+            body["gntp_host"] = args.gntp_host
+        if args.gntp_port is not None:
+            body["gntp_port"] = args.gntp_port
+        if args.gntp_password_prompt:
+            body["gntp_password"] = getpass.getpass("GNTP password: ")
+        elif args.gntp_password is not None:
+            body["gntp_password"] = args.gntp_password
+        if args.clear_gntp_password:
+            body["clear_gntp_password"] = True
+        if args.events is not None:
+            body["events"] = None if args.events.lower() == "default" else [e for e in args.events.split(",") if e.strip()]
+        if args.retry_interval is not None:
+            body["retry_interval"] = None if args.retry_interval.lower() == "default" else int(args.retry_interval)
+        if not body:
+            raise CliError("nothing to change (see `wgp notify set --help`)", 2)
+    d = api.call("POST", "/api/v1/notify", body)
+    if args.json:
+        return emit_json(d) or 0
+    show_notify(d)
+    return 0
+
+
+def cmd_notify_test(args, api, cfg):
+    r = api.request("POST", "/api/v1/notify/test", {"target": "global" if args.use_global else "me"})
+    data = r.json() if r.content else {}
+    if r.status_code != 200:
+        raise CliError(error_text(r.status_code, data), 2 if r.status_code == 401 else 1)
+    if args.json:
+        emit_json(data)
+    else:
+        for name, result in data["results"].items():
+            print(f"{name:<6} {paint('ok', '32') if result == 'ok' else paint(result, '31')}")
+        iv = data["retry_interval"]
+        print(f"target: {data['target']}   events: {', '.join(data['events']) or '-'}   retry notices: "
+              + (f"at most every {iv}s per download" if iv > 0 else "every retry" if iv == 0 else "off"))
+    return 0 if all(v == "ok" for v in data["results"].values()) else 1
+
+
 def cmd_rules(args, api, cfg):
     a = args.rules_action or "list"
     if a == "add":
@@ -1092,6 +1199,7 @@ def build_parser():
     s.add_argument("id", type=int)
     s.add_argument("-o", "--output", help="file or directory (default: current directory)")
     s.add_argument("--force", action="store_true", help="overwrite an existing file")
+    s.add_argument("--no-resume", action="store_true", help="ignore a partial file from an earlier attempt and start over")
 
     s = add("graph", cmd_graph, "ASCII speed graph (total, or of one download)")
     s.add_argument("id", nargs="?", type=int)
@@ -1115,6 +1223,20 @@ def build_parser():
     s.add_argument("key", nargs="?", help="for `get`")
     s.add_argument("pairs", nargs="*", help="for `set`: KEY VALUE pairs")
     s.add_argument("-v", "--verbose", action="store_true", help="show descriptions")
+    s = add("notify", cmd_notify, "your own notifications: show, set (ntfy / GNTP / events / retry interval), rotate-topic")
+    s.add_argument("notify_action", nargs="?", choices=["show", "set", "rotate-topic"], default="show")
+    s.add_argument("--enabled", metavar="on|off", help="master switch")
+    s.add_argument("--ntfy", metavar="on|off", help="send to your private ntfy topic (created on first use)")
+    s.add_argument("--gntp", metavar="on|off", help="send to your GNTP receiver (needs --gntp-host)")
+    s.add_argument("--gntp-host")
+    s.add_argument("--gntp-port", type=int)
+    s.add_argument("--gntp-password", help="(prefer --gntp-password-prompt, arguments show up in `ps`)")
+    s.add_argument("--gntp-password-prompt", action="store_true")
+    s.add_argument("--clear-gntp-password", action="store_true")
+    s.add_argument("--events", metavar="LIST|default", help="e.g. completed,error ; known: completed error paused retry canceled")
+    s.add_argument("--retry-interval", metavar="SECONDS|default", help="retry notices at most every N seconds per download (0 = every retry, -1 = never)")
+    s = add("notify-test", cmd_notify_test, "send a test notification to your own targets (or the server's global channel with --global, staff)")
+    s.add_argument("--global", dest="use_global", action="store_true")
     s = add("rules", cmd_rules, "speed rules (staff): list, add, edit, enable, disable, delete")
     s.add_argument("rules_action", nargs="?", choices=["list", "add", "edit", "enable", "disable", "delete"], default="list")
     s.add_argument("id", nargs="?", type=int, help="rule id for edit / enable / disable / delete")

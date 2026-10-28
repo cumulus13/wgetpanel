@@ -16,9 +16,20 @@ class UrlTests(PanelTestCase):
         self.assertEqual(wget.validate_url("https://example.com/a.iso", block_private=False), "https://example.com/a.iso")
 
     def test_no_credentials_or_whitespace_in_url(self):
-        for bad in ("http://u:p@example.com/x", "http://example.com/a b", "http://example.com/a\nb"):
-            with self.assertRaises(wget.ValidationError):
+        for bad in ("http://u:p@example.com/x", "http://example.com/a\nb", "http://example.com/a\tb", "http://exa mple.com/x", "http://example.com/\x00"):
+            with self.assertRaises(wget.ValidationError, msg=repr(bad)):
                 wget.validate_url(bad, block_private=False)
+
+    def test_spaces_and_brackets_are_normalized_not_rejected(self):
+        raw = ("https://rd20.seedr.cc/ff_get/87348/6012415599/Shaun.The.Sheep.The.Beast.Of.Mossy.Bottom.2026.720p.WEBRip.x264.AAC-[YTS.GG - YTS.BZ].mp4"
+               "?st=YnkyCld1SIGv_qUyifhp7g&e=1792835346")
+        fixed = wget.validate_url(raw, block_private=False)
+        self.assertEqual(fixed, raw.replace(" ", "%20"))
+        self.assertEqual(wget.filename_from_url(fixed), "Shaun.The.Sheep.The.Beast.Of.Mossy.Bottom.2026.720p.WEBRip.x264.AAC-[YTS.GG - YTS.BZ].mp4")
+        self.assertEqual(wget.validate_url(fixed, block_private=False), fixed)                       # idempotent, no double encoding
+        self.assertEqual(wget.validate_url("  http://h/a%20b c?q=a b#f g  ", block_private=False), "http://h/a%20b%20c?q=a%20b#f%20g")
+        self.assertEqual(wget.validate_url("http://h/caf\u00e9", block_private=False), "http://h/caf%C3%A9")
+        self.assertEqual(wget.validate_url("http://h/a?x=1&y=2+3&z=%2F", block_private=False), "http://h/a?x=1&y=2+3&z=%2F")
 
     def test_private_addresses_blocked(self):
         for bad in ("http://127.0.0.1/x", "http://localhost/x", "http://10.1.2.3/x", "http://169.254.169.254/latest/meta-data",

@@ -20,6 +20,7 @@
       {% if user.is_authenticated %}
       <nav class="flex items-center gap-1 text-sm">
         <a class="rounded-md px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800" href="{% url 'dashboard' %}">Downloads</a>
+        <a class="rounded-md px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800" href="{% url 'notifications' %}">Notifications</a>
         {% if user.is_staff %}
         <a class="rounded-md px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800" href="{% url 'rules' %}">Speed rules</a>
         <a class="rounded-md px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800" href="{% url 'settings' %}">Settings</a>

@@ -312,3 +312,35 @@ class AdminV1Tests(PanelTestCase):
         r = self.call("post", "/api/v1/downloads/actions", self.tu, {"action": "remove", "ids": [d.pk], "delete_files": True})
         self.assertEqual((r.json()["affected"], r.json()["files_deleted"]), (1, 1))
         self.assertFalse(os.path.exists(d.path))
+
+
+class OddUrlTests(PanelTestCase):
+    NAME = "Shaun.The.Sheep.The.Beast.Of.Mossy.Bottom.2026.720p.WEBRip.x264.AAC-[YTS.GG - YTS.BZ].mp4"
+
+    def test_url_with_spaces_and_signed_query_downloads_end_to_end(self):
+        blob = make_blob(200_000)
+        with FileServer({"/ff_get/" + self.NAME: blob}) as srv:
+            user = self.make_user()
+            raw = srv.url("/ff_get/" + self.NAME) + "?st=YnkyCld1SIGv_qUyifhp7g&e=1792835346"
+            created, errors = services.create_downloads(user, [raw])
+            self.assertEqual(errors, [])
+            d = created[0]
+            self.assertEqual(d.filename, self.NAME)
+            self.assertIn("%20", d.url)
+            self.assertNotIn(" ", d.url)
+            Download.objects.filter(pk=d.pk).update(status="running")
+            runner.run(d.pk)
+        d.refresh_from_db()
+        self.assertEqual(d.status, "completed", d.error)
+        self.assertEqual(open(d.path, "rb").read(), blob)
+
+    def test_api_accepts_the_url_from_the_bug_report(self):
+        user = self.make_user()
+        c = Client()
+        c.force_login(user)
+        raw = "https://rd20.seedr.cc/ff_get/87348/6012415599/" + self.NAME + "?st=YnkyCld1SIGv_qUyifhp7g&e=1792835346"
+        with self.settings(WGP_BLOCK_PRIVATE_ADDRESSES=False):
+            conf.invalidate()
+            r = c.post("/api/add/", json.dumps({"urls": raw}), content_type="application/json")
+        self.assertEqual(r.status_code, 201, r.content)
+        self.assertEqual(Download.objects.get().filename, self.NAME)

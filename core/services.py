@@ -5,7 +5,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from . import conf, events, files, live, retry, wget
+from . import conf, events, files, live, notify, retry, wget
 from .models import Download
 from .scheduler import next_position
 
@@ -46,7 +46,7 @@ def create_downloads(user, urls, directory=None, filename=None, options=None, no
         pos = next_position()
         for i, url in enumerate(urls, 1):
             try:
-                wget.validate_url(url)
+                url = wget.validate_url(url)  # stored in its normalized form
             except wget.ValidationError as exc:
                 errors.append({"line": i, "url": url[:200], "error": str(exc)})
                 continue
@@ -112,6 +112,7 @@ def apply_action(user, action, ids, delete_files=None, stats=None):
                 _kill_if_running(d, "pause")
             n += 1
             touched.append(d.pk)
+            notify.dispatch("paused", d.pk)
         elif action == "resume" and d.status == Download.PAUSED:
             Download.objects.filter(pk=d.pk).update(status=Download.QUEUED, not_before=None)
             n += 1
@@ -131,6 +132,7 @@ def apply_action(user, action, ids, delete_files=None, stats=None):
                 stats["files_deleted"] += _delete_file(d)
             n += 1
             touched.append(d.pk)
+            notify.dispatch("canceled", d.pk)
         elif action == "remove":
             if d.status == Download.RUNNING:
                 _kill_if_running(d, "cancel_delete" if delete_files else "cancel")

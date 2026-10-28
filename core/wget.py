@@ -9,7 +9,7 @@ import os
 import re
 import socket
 import tempfile
-from urllib.parse import unquote, urlsplit
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 from django.conf import settings
 
@@ -45,12 +45,34 @@ def _is_public(ip: str) -> bool:
         return False
 
 
-def validate_url(url: str, block_private=None) -> str:
+CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
+URL_SAFE = "%/:?#[]@!$&'()*+,;=~-._"  # unreserved + reserved + '%': an existing %XX is never encoded twice
+
+
+def normalize_url(url: str) -> str:
+    """Browsers and wget accept URLs with literal spaces or brackets in the path (copied from a page);
+    percent-encode what must be encoded, reject control characters. Host and port are left alone."""
     url = (url or "").strip()
     if not url or len(url) > MAX_URL_LEN:
         raise ValidationError("URL is empty or too long")
-    if any(c in url for c in "\r\n\x00") or " " in url:
-        raise ValidationError("URL contains whitespace or control characters")
+    if CONTROL_RE.search(url):
+        raise ValidationError("URL contains control characters (line breaks, tabs ...)")
+    try:
+        parts = urlsplit(url)
+        hostpart = parts.netloc
+    except ValueError as exc:
+        raise ValidationError("Invalid URL") from exc
+    if " " in hostpart:
+        raise ValidationError("URL host contains whitespace")
+    return urlunsplit((parts.scheme, hostpart, quote(parts.path, safe=URL_SAFE), quote(parts.query, safe=URL_SAFE),
+                       quote(parts.fragment, safe=URL_SAFE)))
+
+
+def validate_url(url: str, block_private=None) -> str:
+    """Returns the normalized URL (see normalize_url) or raises ValidationError."""
+    url = normalize_url(url)
+    if len(url) > MAX_URL_LEN:
+        raise ValidationError("URL is empty or too long")
     parts = urlsplit(url)
     if parts.scheme.lower() not in ALLOWED_SCHEMES:
         raise ValidationError(f"Scheme must be one of {', '.join(ALLOWED_SCHEMES)}")

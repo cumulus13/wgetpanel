@@ -18,7 +18,7 @@ from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from . import conf, events, live, services, snapshot, tokens
+from . import conf, events, filesend, live, notify, notify_prefs, services, snapshot, tokens
 from .models import ApiToken, Download, SpeedRule
 
 log = logging.getLogger(__name__)
@@ -191,13 +191,14 @@ def actions(request):
 
 
 @bearer
-@require_http_methods(["GET"])
+@require_http_methods(["GET", "HEAD"])
 def file(request, pk):
+    """Finished file with Range / If-Range / HEAD support (resumable)."""
     found = services.completed_file(request.user, pk)
     if found is None:
         return error(404, "not_found", "No such completed download")
     path, name = found
-    return FileResponse(open(path, "rb"), as_attachment=True, filename=name)
+    return filesend.serve(request, path, name)
 
 
 # ------------------------------------------------------------------ admin: settings + speed rules (staff only)
@@ -271,6 +272,30 @@ def rule_detail(request, pk):
     SpeedRule.objects.filter(pk=pk).update(**fields)
     rule.refresh_from_db()
     return JsonResponse({"rule": services.rule_dict(rule)})
+
+
+@bearer
+@require_http_methods(["GET", "POST"])
+def notify_settings(request):
+    """The caller's own notification targets (ntfy topic, GNTP receiver), events and retry-notice interval."""
+    if request.method == "POST":
+        data = _json(request)
+        if data is None:
+            return error(400, "bad_request", "JSON object required")
+        try:
+            return JsonResponse(notify_prefs.update(request.user, data))
+        except ValueError as exc:
+            return error(400, "invalid_notify_settings", str(exc))
+    return JsonResponse(notify_prefs.to_dict(request.user))
+
+
+@bearer
+@require_http_methods(["POST"])
+def notify_test(request):
+    """Send a test message. Body {"target": "me" (default) | "global" (staff)}."""
+    data = _json(request) or {}
+    status, payload = notify_prefs.test(request.user, str(data.get("target") or "me"))
+    return JsonResponse(payload, status=status)
 
 
 # ------------------------------------------------------------------ server sent events

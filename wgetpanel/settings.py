@@ -6,6 +6,7 @@ see ``core/conf.py``.
 """
 
 import os
+import re
 import sys
 from pathlib import Path
 from envdot import load_env
@@ -138,6 +139,32 @@ WGP_TOKEN_TTL_DAYS = env("WGP_TOKEN_TTL_DAYS", "180", int)
 WGP_SSE_MAX_SECONDS = env("WGP_SSE_MAX_SECONDS", "3600", int)
 WGP_SCHEDULER_TICK = env("WGP_SCHEDULER_TICK", '2.0', float)
 WGP_REDIS_URL = env("WGP_REDIS_URL", env("REDIS_URL", "redis://localhost:6379/1"))
+
+# --- notifications (optional; nothing is sent unless NTFY_* and/or GNTP_* is configured) -------------------
+# Events: completed (alias success), error (failed), paused, retry, canceled.
+NOTIFY_EVENTS = [e.strip() for e in env("NOTIFY_EVENTS", "completed,error,paused,retry").split(",") if e.strip()]
+# Retry notices: at most one per download in this many seconds (independent of the retry delay).
+# 0 = notify on every retry, -1 = never notify about retries.
+NOTIFY_RETRY_INTERVAL = int(env("NOTIFY_RETRY_INTERVAL", "60"))
+NOTIFY_PANEL_URL = env("NOTIFY_PANEL_URL", "").rstrip("/")  # public URL of the panel: link in the message
+NOTIFY_TIMEOUT = int(env("NOTIFY_TIMEOUT", "10"))
+NTFY_URL = env("NTFY_URL", "").rstrip("/")  # server root, e.g. https://ntfy.sh (without the topic)
+NTFY_TOPIC = env("NTFY_TOPIC", "")
+NTFY_TOKEN = env("NTFY_TOKEN", "")  # access token (Bearer) ...
+NTFY_USER = env("NTFY_USER", "")  # ... or user + password (Basic)
+NTFY_PASSWORD = env("NTFY_PASSWORD", "")
+GNTP_HOST = env("GNTP_HOST", "")  # Growl / GNTP receiver, e.g. localhost
+GNTP_PORT = int(env("GNTP_PORT", "23053"))
+GNTP_PASSWORD = env("GNTP_PASSWORD", "")
+GNTP_APP_NAME = env("GNTP_APP_NAME", "wgetpanel")
+# Who the global channel above receives: "all" = events of every user (admin monitoring), "none" = nobody's (privacy: only the
+# per-user channels below are used).
+NOTIFY_GLOBAL_SCOPE = env("NOTIFY_GLOBAL_SCOPE", "all").lower()
+# Per-user ntfy: every user gets an unguessable topic "<prefix>-<random>" on NTFY_URL, published with the server's credentials.
+NTFY_USER_TOPIC_PREFIX = re.sub(r"[^A-Za-z0-9_-]", "", env("NTFY_USER_TOPIC_PREFIX", "wgetpanel"))[:30] or "wgetpanel"
+# Per-user GNTP lets a user choose a host the SERVER connects to, so it is off unless the admin lists the networks that
+# may be targeted (CIDRs, comma separated, e.g. "192.168.1.0/24,10.0.0.0/8").
+NOTIFY_USER_GNTP_ALLOW = [c.strip() for c in env("NOTIFY_USER_GNTP_ALLOW", "").split(",") if c.strip()]
 
 # --- celery ---------------------------------------------------------------
 CELERY_BROKER_URL = env("CELERY_BROKER_URL", env("REDIS_URL", "redis://localhost:6379/0"))

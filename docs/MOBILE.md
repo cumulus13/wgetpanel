@@ -127,6 +127,25 @@ await for (final line in resp.stream.transform(utf8.decoder).transform(const Lin
 // on error/close: wait with exponential backoff, reconnect, the first event is a fresh snapshot
 ```
 
+## Resumable file download
+
+`GET /api/v1/downloads/{id}/file` supports `Range: bytes=N-` (answer `206` + `Content-Range`), suffix ranges (`bytes=-500`),
+`If-Range` and `HEAD`. Recommended client flow: `HEAD` for `Content-Length`, `ETag` and the file name; keep the partial
+file together with the ETag; to resume send `Range: bytes=<have>-` and `If-Range: <etag>`. A `206` means append, a `200` means the
+file changed (or ranges are not honoured): start again from zero; `416` means the partial file does not fit. Multiple ranges in
+one header are answered with the whole file.
+
+## Notifications of the signed-in user
+
+`GET /api/v1/notify` returns the caller's settings (ntfy topic and `subscribe_url`, GNTP receiver, events, retry-notice
+interval, server defaults and whether ntfy / GNTP are available on this server). `POST /api/v1/notify` updates them (partial):
+`ntfy_enabled`, `rotate_topic`, `gntp_enabled`, `gntp_host`, `gntp_port`, `gntp_password`, `clear_gntp_password`, `events`
+(`null` = server default), `retry_interval` (`null` = server default, `0` every retry, `-1` never), `enabled`. Invalid input
+answers `400 {error: {code: "invalid_notify_settings", message}}` and changes nothing. `POST /api/v1/notify/test` sends a
+test message to the caller's own targets (`{"target": "global"}` for staff: the server channel).
+
+A mobile app can subscribe to its user's ntfy topic with its own ntfy client; or ignore push entirely and use the SSE stream.
+
 ## Other endpoints
 
 * `POST /api/v1/downloads` accepts `retry` (`3`, `-1` / `"always"`, `0` / `"off"`; omit = server default). Rows carry
@@ -140,4 +159,4 @@ await for (final line in resp.stream.transform(utf8.decoder).transform(const Lin
 
 * Push while the app is not running (iOS background, killed Android app): needs APNs / FCM, which requires
   credentials owned by whoever publishes the app. Deliberately left out of a self-hosted server.
-* Range requests for `GET /downloads/{id}/file` (a mobile download cannot resume).
+

@@ -211,7 +211,7 @@ class DownloadTests(V1Base):
             self.assertTrue(match.url_name.startswith("v1-"), path)
             self.assertTrue(ops, path)
         routes = {"v1-token", "v1-me", "v1-tokens", "v1-token-detail", "v1-summary", "v1-downloads", "v1-actions", "v1-detail", "v1-file", "v1-events",
-              "v1-settings", "v1-rules", "v1-rule-detail"}
+              "v1-settings", "v1-rules", "v1-rule-detail", "v1-notify", "v1-notify-test"}
         documented = {resolve(p.replace("{id}", "1")).url_name for p in doc["paths"]}
         self.assertEqual(routes, documented)
 

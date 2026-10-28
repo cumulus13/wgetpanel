@@ -4,7 +4,7 @@ from datetime import timedelta
 from celery import shared_task
 from django.utils import timezone
 
-from . import conf, events, files, live, runner, scheduler
+from . import conf, events, files, live, notify, runner, scheduler
 from .models import Download
 
 log = logging.getLogger(__name__)
@@ -54,3 +54,13 @@ def maintenance():
         live.drop_series(d.pk)
     Download.objects.filter(pk__in=[d.pk for d in old]).delete()
     return len(old)
+
+
+@shared_task(name="core.tasks.send_notification", bind=True, max_retries=3)
+def send_notification(self, payload, only=None):
+    """Deliver one notification. Only the transports that failed are retried (no duplicates on the others)."""
+    failed = notify.deliver(payload, only)
+    if failed:
+        if self.request.retries < self.max_retries:
+            raise self.retry(args=(payload, sorted(failed)), countdown=15 * 2 ** self.request.retries)
+        log.error("notification %r dropped after retries: %s", payload.get("title"), failed)

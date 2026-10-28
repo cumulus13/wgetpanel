@@ -16,6 +16,7 @@ from django.utils import timezone
 from core import conf, runner
 from core.models import ApiToken, Download, SpeedRule
 from core.tests.helpers import FileServer, PanelTestCase, make_blob
+from core.tests.test_notify import NtfyMock, run_notifications_inline
 
 spec = importlib.util.spec_from_file_location("wgp", Path(__file__).resolve().parents[2] / "cli" / "wgp" / "wgp.py")
 wgp = importlib.util.module_from_spec(spec)
@@ -298,6 +299,45 @@ class DownloadCliTests(CliBase):
         _, err, _ = self.cli("get", str(queued.pk), "-o", dest + os.sep, expect=1)
         self.assertIn("No such completed download", err)
 
+    def test_get_resumes_a_partial_file_and_restarts_when_the_file_changed(self):
+        d = self.finished("big.bin", size=1_200_000)
+        blob = make_blob(1_200_000)
+        open(d.path, "wb").write(blob)
+        dest = os.path.join(self.tmp, "resume") + os.sep
+        os.makedirs(dest)
+        api = wgp.Api(self.live_server_url, json.load(open(self.cfg))["token"])
+        etag = api.request("HEAD", f"/api/v1/downloads/{d.pk}/file").headers["ETag"]
+        part = os.path.join(dest, "big.bin.part")
+        # (1) matching ETag: continue from the 700000 bytes we already have
+        open(part, "wb").write(blob[:700_000]); open(part + ".etag", "w").write(etag)
+        out, _, _ = self.cli("get", str(d.pk), "-o", dest)
+        self.assertIn("resumed from 683.6 KB", out)
+        self.assertEqual(open(os.path.join(dest, "big.bin"), "rb").read(), blob)
+        self.assertEqual(sorted(os.listdir(dest)), ["big.bin"])                       # .part and .part.etag are gone
+        # (2) the partial file belongs to an older version of the file: start over, never mix versions
+        os.remove(os.path.join(dest, "big.bin"))
+        open(part, "wb").write(b"OLD-VERSION-" * 10_000); open(part + ".etag", "w").write('"stale-etag"')
+        out, _, _ = self.cli("get", str(d.pk), "-o", dest)
+        self.assertNotIn("resumed", out)
+        self.assertEqual(open(os.path.join(dest, "big.bin"), "rb").read(), blob)
+        # (3) a partial file that is already complete is just renamed, no transfer
+        os.remove(os.path.join(dest, "big.bin"))
+        open(part, "wb").write(blob); open(part + ".etag", "w").write(etag)
+        out, _, _ = self.cli("get", str(d.pk), "-o", dest)
+        self.assertIn("already complete", out)
+        self.assertEqual(open(os.path.join(dest, "big.bin"), "rb").read(), blob)
+        # (4) --no-resume ignores the partial file; no sidecar = no resume either
+        os.remove(os.path.join(dest, "big.bin"))
+        open(part, "wb").write(blob[:500_000]); open(part + ".etag", "w").write(etag)
+        out, _, _ = self.cli("get", str(d.pk), "-o", dest, "--no-resume")
+        self.assertNotIn("resumed", out)
+        self.assertEqual(open(os.path.join(dest, "big.bin"), "rb").read(), blob)
+        os.remove(os.path.join(dest, "big.bin"))
+        open(part, "wb").write(blob[:500_000])
+        out, _, _ = self.cli("get", str(d.pk), "-o", dest)
+        self.assertNotIn("resumed", out)
+        self.assertEqual(open(os.path.join(dest, "big.bin"), "rb").read(), blob)
+
     def test_users_only_see_their_own(self):
         other = self.make_download("http://h/o", user=self.admin, status="queued", filename="secret.bin")
         out, _, _ = self.cli("list")
@@ -438,3 +478,72 @@ class AdminCliTests(CliBase):
         self.cli("rules", "delete", str(rule.pk))
         self.assertEqual(SpeedRule.objects.count(), 0)
         self.cli("rules", "delete", str(rule.pk), expect=1)
+
+
+class NotifyCliTests(CliBase):
+    def test_notify_test_command(self):
+        run_notifications_inline(self)
+        ntfy = NtfyMock()
+        self.addCleanup(ntfy.close)
+        self.login("root")
+        with self.settings(NTFY_URL="", NTFY_TOPIC="", GNTP_HOST=""):
+            _, err, _ = self.cli("notify-test", "--global", expect=1)
+            self.assertIn("No global notification transport configured", err)
+        with self.settings(NTFY_URL=ntfy.url, NTFY_TOPIC="dl", NTFY_TOKEN="", NOTIFY_RETRY_INTERVAL=60, NOTIFY_EVENTS=["completed", "error", "retry"], GNTP_HOST=""):
+            out, _, _ = self.cli("notify-test", "--global")
+            self.assertIn("ntfy", out); self.assertIn("ok", out)
+            self.assertIn("retry notices: at most every 60s per download", out)
+            self.assertEqual(ntfy.messages[0]["json"]["title"], "wgetpanel test notification")
+            ntfy.status = 401
+            out, _, code = self.cli("notify-test", "--global", expect=1)
+            self.assertIn("HTTP 401", out)
+        self.login("alice")
+        _, err, _ = self.cli("notify-test", "--global", expect=1)                      # staff only
+        self.assertIn("Staff only", err)
+
+    def test_show_includes_retry_totals(self):
+        self.login("alice")
+        d = self.make_download("http://h/x", user=self.alice, status="queued", retry_max=-1, retry_count=2, retry_total=9)
+        out, _, _ = self.cli("show", str(d.pk), "--no-graph")
+        self.assertIn("2 failed in a row, limit always; 9 retries in total", out)
+
+
+class UserNotifyCliTests(CliBase):
+    def setUp(self):
+        super().setUp()
+        run_notifications_inline(self)
+        self.ntfy = NtfyMock()
+        self.addCleanup(self.ntfy.close)
+        self._ov_n = self.settings(NTFY_URL=self.ntfy.url, NTFY_TOPIC="admin", NTFY_TOKEN="", GNTP_HOST="", NOTIFY_EVENTS=["completed", "error", "paused", "retry"],
+                                   NOTIFY_RETRY_INTERVAL=60, NOTIFY_GLOBAL_SCOPE="none", NOTIFY_USER_GNTP_ALLOW=[])
+        self._ov_n.enable()
+        self.addCleanup(self._ov_n.disable)
+        self.login("alice")
+
+    def test_show_set_rotate_and_test(self):
+        out, _, _ = self.cli("notify")
+        self.assertIn("ntfy  off", out); self.assertIn("(no target active)", out); self.assertIn("gntp  not enabled for users", out)
+        out, _, _ = self.cli("notify", "set", "--ntfy", "on", "--events", "completed,error", "--retry-interval", "45")
+        self.assertIn("ntfy  on", out)
+        self.assertIn(f"subscribe in the ntfy app to: {self.ntfy.url}/wgetpanel-", out)
+        self.assertIn("completed, error", out); self.assertIn("every 45s", out)
+        topic = json.loads(self.cli("notify", "--json")[0])["ntfy"]["topic"]
+        out, _, _ = self.cli("notify", "rotate-topic")
+        self.assertNotIn(topic, out)
+        topic = json.loads(self.cli("notify", "--json")[0])["ntfy"]["topic"]
+        out, _, _ = self.cli("notify-test")
+        self.assertIn("ntfy", out); self.assertIn("ok", out); self.assertIn("at most every 45s", out)
+        self.assertEqual(self.ntfy.messages[-1]["json"]["topic"], topic)
+        out, _, _ = self.cli("notify", "set", "--retry-interval", "default", "--events", "default")
+        self.assertIn("server default", out)
+
+    def test_errors_are_explained(self):
+        _, err, _ = self.cli("notify", "set", "--gntp", "on", "--gntp-host", "127.0.0.1", expect=1)
+        self.assertIn("NOTIFY_USER_GNTP_ALLOW", err)
+        _, err, _ = self.cli("notify", "set", "--events", "bogus", expect=1)
+        self.assertIn("unknown event", err)
+        _, err, _ = self.cli("notify", "set", expect=2)
+        self.assertIn("nothing to change", err)
+        self.cli("notify", "set", "--ntfy", "maybe", expect=2)
+        _, err, _ = self.cli("notify-test", expect=1)
+        self.assertIn("no notification target enabled", err)

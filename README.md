@@ -151,6 +151,35 @@ Cancel / remove / purge accept `delete_files` (web: a prompt, API: `delete_files
 resolved and must be inside an allowed download directory, then only that entry is removed (a symlink is removed, never its
 target). Running downloads are stopped first and their file is deleted by the worker (`files_pending` in the response).
 
+## Notifications (ntfy and GNTP)
+
+Two kinds of channel, both optional (nothing is sent unless one is configured):
+
+* **Global channel** (environment): `NTFY_URL` + `NTFY_TOPIC` (token or user/password optional) and/or `GNTP_HOST`.
+  It receives the events of **all users** (`NOTIFY_GLOBAL_SCOPE=all`, default) or of nobody (`none`, for installs where
+  users must not see each other's file names).
+* **Per-user channels**: every user enables their own targets on the *Notifications* page, with `wgp notify` or
+  `/api/v1/notify`, and only ever receives **their own** downloads.
+  * **ntfy:** the server generates a private topic `<NTFY_USER_TOPIC_PREFIX>-<96 random bits>` and publishes to it with the
+    server's credentials; the user just subscribes to the topic shown (it can be regenerated if it leaks). The ntfy
+    credentials must be allowed to publish to that prefix. On a public server such as ntfy.sh anyone who knows a topic name
+    can read it, so the random name is the only protection; a self-hosted ntfy with access control is the safer choice.
+  * **GNTP:** off unless the admin lists networks in `NOTIFY_USER_GNTP_ALLOW` (CIDRs). The *server* connects to the host the
+    user enters, so without that allow-list users could use it to probe the internal network. The host must resolve inside the
+    allowed networks, checked when saving **and again at every send**. The password is stored encrypted.
+
+Events: `completed` (alias `success`), `error`, `paused`, `retry`, `canceled` (off by default); the server default is
+`NOTIFY_EVENTS`, each user may choose their own. Messages are sent from a Celery task with retries, only to the transport
+that failed. The task payload holds the message and a target key; credentials are looked up at delivery, never put in the
+broker. A message contains the file name, size, host and the reason, never the full URL (signed links carry secrets).
+
+**Retry notices have their own interval**, independent of the retry delay: `NOTIFY_RETRY_INTERVAL=60` means at most one
+retry notice per download and per target every 60 seconds, whether the retry delay is 3 s or 30 s. The first retry is announced
+at once, further retries in the window are counted, and the next notice says "N more retries since the last notice". Each user
+can set their own interval. The final `completed` / `error` message is never delayed and reports how often the download was
+retried. `0` notifies on every retry, `-1` never. Check the setup with `wgp notify-test` (your own targets) or
+`wgp notify-test --global` (staff), or `POST /api/v1/notify/test`.
+
 ## Command line client
 
 `cli/wgp/wgp.py` covers the whole API (list, detail, add with schedule/retry/limits, actions, get, live `watch`, ASCII
@@ -194,7 +223,7 @@ export TEST_REDIS_URL=redis://localhost:6379/15                         # DB is 
 python manage.py test
 ```
 
-The suite (145 tests) runs a real `wget` against a local Range-capable server: completion + checksum, 404/refused/auth
+The suite (215 tests) runs a real `wget` against a local Range-capable server: completion + checksum, 404/refused/auth
 errors, pause→resume, cancel, speed-rule restart, `--limit-rate`, speed series, scheduler limits and concurrent
 ticks, reaper, API permissions/CSRF/SSRF/path traversal.
 

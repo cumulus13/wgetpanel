@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Notifications · {{ site_name }}{% endblock %}
+{% block content %}
+<h1 class="mb-1 text-xl font-bold">Notifications</h1>
+<p class="mb-4 max-w-3xl text-sm text-slate-500">Get a message when one of <b>your</b> downloads completes, fails, is paused or is being retried. Other users never see your downloads here.</p>
+<div id="notify-msg" class="mb-4 hidden rounded-lg border p-3 text-sm"></div>
+<form id="form-notify" class="space-y-6">
+  <section class="card p-5">
+    <label class="flex items-center gap-2 font-semibold"><input id="n-enabled" type="checkbox"> Notifications enabled</label>
+    <p id="n-global" class="mt-2 text-xs text-slate-500"></p>
+  </section>
+
+  <section class="card p-5" id="sec-ntfy">
+    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">ntfy</h2>
+    <p id="ntfy-unavailable" class="hidden text-sm text-slate-500">ntfy is not configured on this server.</p>
+    <div id="ntfy-body" class="space-y-3">
+      <label class="flex items-center gap-2"><input id="n-ntfy" type="checkbox"> Send to my private ntfy topic</label>
+      <div id="ntfy-topic-box" class="hidden space-y-2 text-sm">
+        <div><span class="label">Subscribe in the ntfy app to</span><code id="n-topic-url" class="block break-all rounded bg-slate-100 p-2 dark:bg-slate-800"></code></div>
+        <p class="text-xs text-slate-500">Server: <code id="n-ntfy-server"></code>, topic: <code id="n-topic"></code>. The topic name is a secret: anyone who knows it can read your messages.</p>
+        <button id="btn-rotate" type="button" class="btn">Generate a new topic</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card p-5" id="sec-gntp">
+    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">GNTP (Growl)</h2>
+    <p id="gntp-unavailable" class="hidden text-sm text-slate-500">GNTP for users is not enabled on this server.</p>
+    <div id="gntp-body" class="space-y-3">
+      <label class="flex items-center gap-2"><input id="n-gntp" type="checkbox"> Send to my GNTP receiver</label>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div class="sm:col-span-2"><label class="label" for="n-gntp-host">Host</label><input id="n-gntp-host" class="input" placeholder="192.168.1.20"></div>
+        <div><label class="label" for="n-gntp-port">Port</label><input id="n-gntp-port" class="input" type="number" min="1" max="65535" value="23053"></div>
+        <div class="sm:col-span-2"><label class="label" for="n-gntp-pass">Password <span id="n-gntp-has" class="normal-case text-slate-400"></span></label><input id="n-gntp-pass" class="input" type="password" autocomplete="new-password" placeholder="leave empty to keep"></div>
+        <label class="flex items-end gap-2 pb-2 text-sm"><input id="n-gntp-clear" type="checkbox"> remove password</label>
+      </div>
+      <p class="text-xs text-slate-500">The server connects to this host, so it must be inside: <span id="n-gntp-nets"></span></p>
+    </div>
+  </section>
+
+  <section class="card p-5">
+    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">What to send</h2>
+    <label class="mb-2 flex items-center gap-2 text-sm"><input id="n-events-default" type="checkbox"> Use the server default (<span id="n-events-def"></span>)</label>
+    <div id="n-events" class="flex flex-wrap gap-4 text-sm"></div>
+    <div class="mt-4 max-w-xs">
+      <label class="label" for="n-interval">Retry notices at most every (seconds)</label>
+      <input id="n-interval" class="input" type="number" min="-1" max="86400" placeholder="server default">
+      <p class="mt-1 text-xs text-slate-500">Independent of the retry delay. 0 = every retry, -1 = never. Empty = server default (<span id="n-interval-def"></span> s). Completed / failed / paused messages are never delayed.</p>
+    </div>
+  </section>
+  <div class="flex gap-2"><button class="btn btn-primary" type="submit">Save</button><button id="btn-test" type="button" class="btn">Send test notification</button></div>
+</form>
+{% endblock %}
+{% block scripts %}<script src="{% static 'core/js/notifications.js' %}"></script>{% endblock %}
