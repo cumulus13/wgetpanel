@@ -147,7 +147,7 @@ NOTIFY_EVENTS = env("NOTIFY_EVENTS", "completed,error,paused,retry", cast_type=l
 # 0 = notify on every retry, -1 = never notify about retries.
 NOTIFY_RETRY_INTERVAL = env("NOTIFY_RETRY_INTERVAL", 60)
 NOTIFY_PANEL_URL = env("NOTIFY_PANEL_URL", "")  # public URL of the panel: link in the message
-NOTIFY_PANEL_URL = NOTIFY_PANEL_URL.rstrip("/") NOTIFY_PANEL_URL else  ""
+NOTIFY_PANEL_URL = NOTIFY_PANEL_URL.rstrip("/") if NOTIFY_PANEL_URL else  ""
 
 NOTIFY_TIMEOUT = env("NOTIFY_TIMEOUT", 10)
 NTFY_URL = env("NTFY_URL", "")  # server root, e.g. https://ntfy.sh (without the topic)
@@ -167,7 +167,7 @@ NOTIFY_GLOBAL_SCOPE = env("NOTIFY_GLOBAL_SCOPE", "all").lower()
 NTFY_USER_TOPIC_PREFIX = re.sub(r"[^A-Za-z0-9_-]", "", env("NTFY_USER_TOPIC_PREFIX", "wgetpanel"))[:30] or "wgetpanel"
 # Per-user GNTP lets a user choose a host the SERVER connects to, so it is off unless the admin lists the networks that
 # may be targeted (CIDRs, comma separated, e.g. "192.168.1.0/24,10.0.0.0/8").
-NOTIFY_USER_GNTP_ALLOW = [c.strip() for c in env("NOTIFY_USER_GNTP_ALLOW", [], cast_type=list) if c and c.strip()]
+NOTIFY_USER_GNTP_ALLOW = env("NOTIFY_USER_GNTP_ALLOW", [], cast_type=list)
 
 # --- celery ---------------------------------------------------------------
 CELERY_BROKER_URL = env("CELERY_BROKER_URL", env("REDIS_URL", "redis://localhost:6379/0"))
