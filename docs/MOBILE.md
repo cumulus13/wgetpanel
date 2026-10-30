@@ -86,7 +86,7 @@ sequenceDiagram
     end
 ```
 
-[![Architecture Mobile](https://i.ibb.co/yFh9VqWD/wgetpanel-mobile-architeture.jpg)](https://i.ibb.co/yFh9VqWD/wgetpanel-mobile-architeture.jpg)
+[![Architecture Mobile](https://raw.githubusercontent.com/licface15/images/refs/heads/main/wgetpanel/wgetpanel_architeture.jpg)](https://raw.githubusercontent.com/licface15/images/refs/heads/main/wgetpanel/wgetpanel_architeture.jpg)
 
 Errors: `{"error":{"code":"…","message":"…"}}` with 400 / 401 / 404 / 429 / 503.
 Tokens expire after `WGP_TOKEN_TTL_DAYS` (default 180, 0 = never); `GET /api/v1/auth/tokens` lists devices and

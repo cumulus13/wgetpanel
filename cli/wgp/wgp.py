@@ -40,7 +40,7 @@ try:
 except ImportError:  # the graph commands then explain what to install
     asciichartpy = None
 
-__version__ = "0.1.0"
+__version__ = "0.1.33"
 TERMINAL = ("completed", "error", "canceled")
 STATUSES = ("queued", "running", "paused", "completed", "error", "canceled")
 ACTION_VERBS = {"pause": "paused", "resume": "resumed", "retry": "re-queued", "cancel": "canceled", "remove": "removed",
